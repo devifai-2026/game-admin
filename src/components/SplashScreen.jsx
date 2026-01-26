@@ -1,75 +1,223 @@
-import React, { useState, useEffect } from 'react'
-import { FaUpload, FaTrash, FaSave, FaTimes, FaEye, FaEdit, FaCheckCircle, FaExclamationTriangle } from 'react-icons/fa'
+import React, { useState, useEffect } from 'react';
+import { FaUpload, FaTrash, FaSave, FaTimes, FaEye, FaEdit, FaCheckCircle, FaExclamationTriangle, FaSpinner } from 'react-icons/fa';
+import splashAPI from '../apis/splash.api'; // Make sure this path is correct
 
 const SplashScreen = () => {
-  const [images, setImages] = useState([])
-  const [savedImages, setSavedImages] = useState([])
-  const [viewImage, setViewImage] = useState(null)
+  const [images, setImages] = useState([]);
+  const [savedImages, setSavedImages] = useState([]);
+  const [viewImage, setViewImage] = useState(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
 
-  // Load saved images from localStorage on component mount
+  // Load splash screens from API on component mount
   useEffect(() => {
-    const saved = JSON.parse(localStorage.getItem('splashImages') || '[]')
-    // Ensure maximum 4 saved images
-    setSavedImages(saved.slice(0, 4))
-  }, [])
+    fetchSplashScreens();
+  }, []);
 
-  const handleImageUpload = (e) => {
-    const maxUploadable = 4 - images.length
+  // Test Cloudinary connection on mount
+  useEffect(() => {
+    const testConnection = async () => {
+      const result = await splashAPI.testCloudinaryConnection();
+      if (!result.success) {
+        console.warn('Cloudinary connection test:', result.message);
+      }
+    };
+    testConnection();
+  }, []);
+
+  // Fetch splash screens from API
+  const fetchSplashScreens = async () => {
+    setLoading(true);
+    setError('');
+    const result = await splashAPI.getAllSplash();
+    
+    if (result.success) {
+      // Transform API data to match your existing format
+      const transformedImages = result.data.map((splash, index) => ({
+        id: splash._id,
+        position: splash.order || index + 1,
+        name: `Splash-${splash.serialNo}`,
+        size: 1024 * 1024, // Default size - adjust as needed
+        type: 'image/jpeg',
+        uploadedAt: splash.createdAt,
+        data: splash.image, // Cloudinary URL
+        isActive: splash.isActive,
+        serialNo: splash.serialNo,
+        _id: splash._id
+      }));
+      
+      setSavedImages(transformedImages);
+      setSuccess('');
+    } else {
+      setError(result.message || 'Failed to load splash screens');
+    }
+    setLoading(false);
+  };
+
+  // Handle image upload to Cloudinary
+  const handleImageUpload = async (e) => {
+    const maxUploadable = 4 - images.length;
     if (maxUploadable <= 0) {
-      alert('Maximum 4 images allowed in upload section!')
-      return
+      setError('Maximum 4 images allowed in upload section!');
+      return;
     }
     
-    const files = Array.from(e.target.files).slice(0, maxUploadable)
+    const files = Array.from(e.target.files).slice(0, maxUploadable);
     
-    const newImages = files.map((file, index) => ({
-      id: Date.now() + Math.random(),
-      file,
-      preview: URL.createObjectURL(file),
-      name: file.name,
-      size: file.size,
-      type: file.type || 'image/jpeg',
-      uploadedAt: new Date().toISOString(),
-      position: images.length + index + 1
-    }))
-
-    setImages(prev => [...prev, ...newImages].slice(0, 4))
-  }
-
-  const handleEditImage = (imageId) => {
-    const input = document.createElement('input')
-    input.type = 'file'
-    input.accept = 'image/*'
-    
-    input.onchange = (e) => {
-      const file = e.target.files[0]
-      if (!file) return
+    // Process each file
+    for (const file of files) {
+      // Validate file
+      if (!file.type.startsWith('image/')) {
+        setError('Please select only image files (JPG, PNG, GIF, WebP)');
+        continue;
+      }
       
-      const isSavedImage = savedImages.some(img => img.id === imageId)
+      if (file.size > 10 * 1024 * 1024) { // 10MB limit
+        setError(`File ${file.name} is too large (max 10MB)`);
+        continue;
+      }
+
+      // Create local preview immediately
+      const newImage = {
+        id: Date.now() + Math.random(),
+        file,
+        preview: URL.createObjectURL(file),
+        name: file.name,
+        size: file.size,
+        type: file.type || 'image/jpeg',
+        uploadedAt: new Date().toISOString(),
+        position: images.length + 1,
+        uploading: true // Mark as uploading
+      };
+
+      setImages(prev => [...prev, newImage].slice(0, 4));
+      
+      // Upload to Cloudinary
+      await uploadToCloudinary(newImage);
+    }
+  };
+
+  // Upload single image to Cloudinary
+  const uploadToCloudinary = async (image) => {
+    setUploading(true);
+    setError('');
+    
+    // Simulate progress for better UX
+    const progressInterval = setInterval(() => {
+      setUploadProgress(prev => {
+        if (prev >= 90) {
+          clearInterval(progressInterval);
+          return prev;
+        }
+        return prev + 10;
+      });
+    }, 200);
+
+    try {
+      // Upload to Cloudinary
+      const uploadResult = await splashAPI.uploadToCloudinary(image.file);
+      
+      clearInterval(progressInterval);
+      setUploadProgress(100);
+      
+      if (!uploadResult.success) {
+        throw new Error(uploadResult.message);
+      }
+      
+      // Update the image with Cloudinary URL
+      setImages(prev => prev.map(img => 
+        img.id === image.id 
+          ? { 
+              ...img, 
+              data: uploadResult.data.url, 
+              uploading: false,
+              name: `Splash-${Date.now()}` // Give it a proper name
+            }
+          : img
+      ));
+      
+      setSuccess('Image uploaded to Cloudinary successfully!');
+      
+      // Reset progress after a delay
+      setTimeout(() => {
+        setUploadProgress(0);
+      }, 1000);
+      
+    } catch (err) {
+      clearInterval(progressInterval);
+      setError(err.message || 'Failed to upload image to Cloudinary');
+      // Remove the failed upload from images
+      setImages(prev => prev.filter(img => img.id !== image.id));
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleEditImage = async (imageId) => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    
+    input.onchange = async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      
+      // Validate file
+      if (!file.type.startsWith('image/')) {
+        setError('Please select an image file');
+        return;
+      }
+      
+      if (file.size > 10 * 1024 * 1024) {
+        setError('Image size must be less than 10MB');
+        return;
+      }
+      
+      const isSavedImage = savedImages.some(img => img.id === imageId);
       
       if (isSavedImage) {
-        const reader = new FileReader()
-        reader.onloadend = () => {
-          const updatedImages = savedImages.map(img => {
-            if (img.id === imageId) {
-              return {
-                ...img,
-                name: file.name,
-                size: file.size,
-                type: file.type,
-                uploadedAt: new Date().toISOString(),
-                data: reader.result
-              }
-            }
-            return img
-          })
+        // Edit saved image (upload to Cloudinary and update in database)
+        const uploadResult = await splashAPI.uploadToCloudinary(file);
+        
+        if (uploadResult.success) {
+          // Find the splash screen to update
+          const splashToUpdate = savedImages.find(img => img.id === imageId);
           
-          setSavedImages(updatedImages)
-          localStorage.setItem('splashImages', JSON.stringify(updatedImages))
-          alert('Image updated successfully!')
+          // Update in database
+          const updateResult = await splashAPI.updateSplash(splashToUpdate._id, {
+            image: uploadResult.data.url
+          });
+          
+          if (updateResult.success) {
+            // Update local state
+            const updatedImages = savedImages.map(img => {
+              if (img.id === imageId) {
+                return {
+                  ...img,
+                  name: file.name,
+                  size: file.size,
+                  type: file.type,
+                  uploadedAt: new Date().toISOString(),
+                  data: uploadResult.data.url
+                };
+              }
+              return img;
+            });
+            
+            setSavedImages(updatedImages);
+            setSuccess('Image updated successfully!');
+            setTimeout(() => fetchSplashScreens(), 1000); // Refresh data
+          } else {
+            setError('Failed to update image in database');
+          }
+        } else {
+          setError('Failed to upload image to Cloudinary');
         }
-        reader.readAsDataURL(file)
       } else {
+        // Edit unsaved image
         const updatedImages = images.map(img => {
           if (img.id === imageId) {
             const newImage = {
@@ -79,141 +227,217 @@ const SplashScreen = () => {
               name: file.name,
               size: file.size,
               type: file.type,
-              uploadedAt: new Date().toISOString()
-            }
-            return newImage
+              uploadedAt: new Date().toISOString(),
+              data: null // Reset Cloudinary URL
+            };
+            
+            // Upload the new file to Cloudinary
+            uploadToCloudinary(newImage);
+            
+            return newImage;
           }
-          return img
-        })
+          return img;
+        });
         
-        setImages(updatedImages)
+        setImages(updatedImages);
       }
-    }
+    };
     
-    input.click()
-  }
+    input.click();
+  };
 
   const removeImage = (id) => {
-    const updatedImages = images.filter(img => img.id !== id)
+    const updatedImages = images.filter(img => img.id !== id);
     const renumberedImages = updatedImages.map((img, index) => ({
       ...img,
       position: index + 1
-    }))
-    setImages(renumberedImages)
-  }
+    }));
+    setImages(renumberedImages);
+  };
 
-  const saveAllImages = () => {
+  const saveAllImages = async () => {
     if (images.length === 0) {
-      alert('No images to save!')
-      return
+      setError('No images to save!');
+      return;
     }
 
     // Check if saving would exceed total limit of 4
-    const totalAfterSave = savedImages.length + images.length
+    const totalAfterSave = savedImages.length + images.length;
     if (totalAfterSave > 4) {
-      const canSaveCount = 4 - savedImages.length
-      alert(`Cannot save all images! You can only save ${canSaveCount} more image(s). Please remove some saved images first.`)
-      return
+      const canSaveCount = 4 - savedImages.length;
+      setError(`Cannot save all images! You can only save ${canSaveCount} more image(s). Please remove some saved images first.`);
+      return;
     }
 
-    const savePromises = images.map(img => {
-      return new Promise((resolve) => {
-        if (img.file) {
-          const reader = new FileReader()
-          reader.onloadend = () => {
-            resolve({
-              id: img.id,
-              name: img.name,
-              size: img.size,
-              type: img.type,
-              uploadedAt: img.uploadedAt,
-              data: reader.result,
-              position: savedImages.length + 1 // Start position after existing saved images
-            })
-          }
-          reader.readAsDataURL(img.file)
-        } else {
-          resolve(img)
-        }
-      })
-    })
+    // Check if all images have been uploaded to Cloudinary
+    const imagesWithoutCloudinary = images.filter(img => !img.data && !img.uploading);
+    if (imagesWithoutCloudinary.length > 0) {
+      setError('Some images are not uploaded to Cloudinary yet. Please wait...');
+      return;
+    }
 
-    Promise.all(savePromises).then((processedImages) => {
+    // Check if any images are still uploading
+    const stillUploading = images.some(img => img.uploading);
+    if (stillUploading) {
+      setError('Some images are still uploading. Please wait...');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+    
+    try {
+      // Save each image to database
+      const savePromises = images.map(async (img, index) => {
+        const splashData = {
+          image: img.data,
+          serialNo: savedImages.length + index + 1,
+          order: savedImages.length + index + 1,
+          isActive: true
+        };
+        
+        const result = await splashAPI.createSplash(splashData);
+        
+        if (!result.success) {
+          throw new Error(`Failed to save image ${img.name}: ${result.message}`);
+        }
+        
+        return {
+          id: result.data._id,
+          position: savedImages.length + index + 1,
+          name: `Splash-${result.data.serialNo}`,
+          size: img.size,
+          type: img.type,
+          uploadedAt: result.data.createdAt,
+          data: result.data.image,
+          isActive: result.data.isActive,
+          serialNo: result.data.serialNo,
+          _id: result.data._id
+        };
+      });
+
+      const processedImages = await Promise.all(savePromises);
+      
+      // Combine with existing saved images
       const allImages = [...savedImages, ...processedImages]
         .slice(0, 4)
         .map((img, index) => ({
           ...img,
           position: index + 1
-        }))
+        }));
       
-      setSavedImages(allImages)
-      localStorage.setItem('splashImages', JSON.stringify(allImages))
-      setImages([])
-      alert(`${processedImages.length} images saved successfully!`)
-    })
-  }
+      setSavedImages(allImages);
+      setImages([]);
+      setSuccess(`${processedImages.length} images saved successfully!`);
+      
+      // Refresh from server to ensure consistency
+      setTimeout(() => fetchSplashScreens(), 1000);
+      
+    } catch (err) {
+      setError(err.message || 'Failed to save images. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  const removeSavedImage = (id) => {
-    const updated = savedImages.filter(img => img.id !== id)
-    const renumberedImages = updated.map((img, index) => ({
-      ...img,
-      position: index + 1
-    }))
-    setSavedImages(renumberedImages)
-    localStorage.setItem('splashImages', JSON.stringify(renumberedImages))
-  }
+  const removeSavedImage = async (id) => {
+    if (!window.confirm('Are you sure you want to delete this splash screen?')) {
+      return;
+    }
+
+    try {
+      // Find the image to delete
+      const imageToDelete = savedImages.find(img => img.id === id);
+      
+      if (!imageToDelete) return;
+
+      // Delete from database
+      const result = await splashAPI.deleteSplash(imageToDelete._id);
+      
+      if (result.success) {
+        // Update local state
+        const updated = savedImages.filter(img => img.id !== id);
+        const renumberedImages = updated.map((img, index) => ({
+          ...img,
+          position: index + 1
+        }));
+        setSavedImages(renumberedImages);
+        setSuccess('Image deleted successfully!');
+      } else {
+        setError('Failed to delete image from database');
+      }
+    } catch (err) {
+      setError('Failed to delete image');
+    }
+  };
 
   const clearAllUnsaved = () => {
     if (images.length === 0) {
-      alert('No unsaved images to clear!')
-      return
+      setError('No unsaved images to clear!');
+      return;
     }
     
     if (window.confirm(`Are you sure you want to clear all ${images.length} unsaved images?`)) {
-      setImages([])
+      setImages([]);
+      setSuccess('All unsaved images cleared');
     }
-  }
+  };
 
-  const clearAllSaved = () => {
+  const clearAllSaved = async () => {
     if (savedImages.length === 0) {
-      alert('No saved images to clear!')
-      return
+      setError('No saved images to clear!');
+      return;
     }
     
-    if (window.confirm(`Are you sure you want to delete all ${savedImages.length} saved images?`)) {
-      setSavedImages([])
-      localStorage.removeItem('splashImages')
+    if (window.confirm(`Are you sure you want to delete all ${savedImages.length} saved images? This cannot be undone!`)) {
+      setLoading(true);
+      try {
+        // Delete all from database
+        const deletePromises = savedImages.map(img => 
+          splashAPI.deleteSplash(img._id)
+        );
+        
+        await Promise.all(deletePromises);
+        
+        // Clear local state
+        setSavedImages([]);
+        setSuccess('All splash screens deleted successfully!');
+      } catch (err) {
+        setError('Failed to delete all splash screens');
+      } finally {
+        setLoading(false);
+      }
     }
-  }
+  };
 
   const formatFileSize = (bytes) => {
-    if (!bytes || bytes === 0) return '0 bytes'
-    if (bytes < 1024) return bytes + ' bytes'
-    else if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB'
-    else return (bytes / 1048576).toFixed(1) + ' MB'
-  }
+    if (!bytes || bytes === 0) return '0 bytes';
+    if (bytes < 1024) return bytes + ' bytes';
+    else if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+    else return (bytes / 1048576).toFixed(1) + ' MB';
+  };
 
   const formatDate = (dateString) => {
-    if (!dateString) return 'Unknown date'
+    if (!dateString) return 'Unknown date';
     try {
-      const date = new Date(dateString)
-      return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      const date = new Date(dateString);
+      return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     } catch (e) {
-      return 'Invalid date'
+      return 'Invalid date';
     }
-  }
+  };
 
   const getFileExtension = (type) => {
-    if (!type) return 'IMG'
-    const parts = type.split('/')
-    return parts.length > 1 ? parts[1].toUpperCase() : 'IMG'
-  }
+    if (!type) return 'IMG';
+    const parts = type.split('/');
+    return parts.length > 1 ? parts[1].toUpperCase() : 'IMG';
+  };
 
   // Check if maximum limit is reached
-  const isMaxLimitReached = savedImages.length >= 4
+  const isMaxLimitReached = savedImages.length >= 4;
 
   const ImageCard = ({ image, isSaved = false, onView, onDelete, onEdit }) => {
-    if (!image) return null
+    if (!image) return null;
     
     return (
       <div className="relative border rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow bg-white group">
@@ -234,6 +458,14 @@ const SplashScreen = () => {
             className="w-full h-48 object-cover cursor-pointer"
             onClick={() => onView(image)}
           />
+          
+          {image.uploading && (
+            <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+              <FaSpinner className="animate-spin text-white text-2xl" />
+              <span className="ml-2 text-white text-sm">Uploading to Cloudinary...</span>
+            </div>
+          )}
+          
           <div className="absolute inset-0 bg-black bg-opacity-0 hover:bg-opacity-10 transition-all duration-300"></div>
           
           <div className={`absolute top-2 right-2 flex space-x-1 ${isSaved ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'} transition-opacity`}>
@@ -279,6 +511,17 @@ const SplashScreen = () => {
                     Saved
                   </span>
                 )}
+                {image.uploading && (
+                  <span className="text-xs px-2 py-1 bg-blue-100 text-blue-600 rounded flex items-center">
+                    <FaSpinner className="animate-spin mr-1" size={10} />
+                    Uploading
+                  </span>
+                )}
+                {image.data && !isSaved && (
+                  <span className="text-xs px-2 py-1 bg-purple-100 text-purple-600 rounded">
+                    Cloudinary
+                  </span>
+                )}
               </div>
               <p className="text-xs text-gray-500 mt-2">
                 {formatDate(image.uploadedAt)}
@@ -286,7 +529,7 @@ const SplashScreen = () => {
             </div>
           </div>
           
-          {!isSaved && (
+          {!isSaved && !image.uploading && (
             <button
               onClick={() => onEdit(image.id)}
               className="mt-3 w-full py-1 text-sm border border-blue-500 text-blue-500 rounded hover:bg-blue-50 transition-colors flex items-center justify-center"
@@ -297,7 +540,17 @@ const SplashScreen = () => {
           )}
         </div>
       </div>
-    )
+    );
+  };
+
+  // Show loading while fetching data
+  if (loading && savedImages.length === 0) {
+    return (
+      <div className="bg-white rounded-lg shadow-lg p-4 md:p-6 flex items-center justify-center h-64">
+        <FaSpinner className="animate-spin text-3xl text-blue-500 mr-3" />
+        <span>Loading splash screens...</span>
+      </div>
+    );
   }
 
   return (
@@ -327,6 +580,11 @@ const SplashScreen = () => {
                   <span>{formatFileSize(viewImage.size)}</span>
                   <span>•</span>
                   <span>{formatDate(viewImage.uploadedAt)}</span>
+                  {viewImage.data && viewImage.data.includes('cloudinary') && (
+                    <span className="px-2 py-1 bg-blue-500 text-white rounded-full text-xs">
+                      Cloudinary
+                    </span>
+                  )}
                 </div>
               </div>
               <div className="flex justify-center items-center bg-gray-900 min-h-[60vh]">
@@ -341,10 +599,44 @@ const SplashScreen = () => {
         </div>
       )}
 
+      {/* Error and Success Messages */}
+      {error && (
+        <div className="mb-6 p-4 rounded-lg bg-red-50 border border-red-200 flex items-center">
+          <FaExclamationTriangle className="text-red-500 mr-3 flex-shrink-0" />
+          <div>
+            <p className="font-semibold text-red-700">Error!</p>
+            <p className="text-red-600 text-sm">{error}</p>
+          </div>
+          <button
+            onClick={() => setError('')}
+            className="ml-auto text-red-500 hover:text-red-700"
+          >
+            <FaTimes />
+          </button>
+        </div>
+      )}
+
+      {success && (
+        <div className="mb-6 p-4 rounded-lg bg-green-50 border border-green-200 flex items-center">
+          <FaCheckCircle className="text-green-500 mr-3 flex-shrink-0" />
+          <div>
+            <p className="font-semibold text-green-700">Success!</p>
+            <p className="text-green-600 text-sm">{success}</p>
+          </div>
+          <button
+            onClick={() => setSuccess('')}
+            className="ml-auto text-green-500 hover:text-green-700"
+          >
+            <FaTimes />
+          </button>
+        </div>
+      )}
+
       <h2 className="text-2xl font-bold mb-6" style={{ color: '#cc494c' }}>
         Splash Screen Images
       </h2>
       
+     
       {/* Maximum Limit Warning Banner */}
       {isMaxLimitReached && (
         <div className="mb-6 p-4 rounded-lg bg-yellow-50 border border-yellow-200 flex items-center">
@@ -365,19 +657,28 @@ const SplashScreen = () => {
                style={{ backgroundColor: '#fea947' }}>
             <FaUpload className="text-2xl text-white" />
           </div>
-          <h3 className="text-lg font-semibold mb-2">Upload Images</h3>
+          <h3 className="text-lg font-semibold mb-2">Upload Images to Cloudinary</h3>
           <p className="text-gray-600 mb-4">
-            Upload up to 4 images for splash screen
+            Upload up to 4 images for splash screen. Images are stored on Cloudinary CDN.
           </p>
           
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <label className="cursor-pointer">
-              <div className={`flex items-center px-6 py-3 rounded-lg text-white font-semibold transition duration-300 ${images.length >= 4 ? 'opacity-50 cursor-not-allowed' : isMaxLimitReached ? 'opacity-50 cursor-not-allowed' : 'hover:opacity-90'} shadow-md`}
+              <div className={`flex items-center px-6 py-3 rounded-lg text-white font-semibold transition duration-300 ${images.length >= 4 ? 'opacity-50 cursor-not-allowed' : isMaxLimitReached ? 'opacity-50 cursor-not-allowed' : uploading ? 'opacity-50 cursor-not-allowed' : 'hover:opacity-90'} shadow-md`}
                 style={{ backgroundColor: '#fea947' }}>
-                <FaUpload className="mr-2" />
-                {images.length >= 4 ? 'Upload Limit Reached' : 
-                 isMaxLimitReached ? 'Maximum Saved Reached' : 
-                 'Select Images'}
+                {uploading ? (
+                  <>
+                    <FaSpinner className="animate-spin mr-2" />
+                    Uploading...
+                  </>
+                ) : (
+                  <>
+                    <FaUpload className="mr-2" />
+                    {images.length >= 4 ? 'Upload Limit Reached' : 
+                     isMaxLimitReached ? 'Maximum Saved Reached' : 
+                     'Select Images'}
+                  </>
+                )}
               </div>
               <input
                 type="file"
@@ -385,7 +686,7 @@ const SplashScreen = () => {
                 accept="image/*"
                 onChange={handleImageUpload}
                 className="hidden"
-                disabled={images.length >= 4 || isMaxLimitReached}
+                disabled={images.length >= 4 || isMaxLimitReached || uploading}
               />
             </label>
             <div className="text-center">
@@ -395,6 +696,21 @@ const SplashScreen = () => {
               <div className="text-sm text-gray-600">Uploaded Images</div>
             </div>
           </div>
+          
+          {/* Upload Progress */}
+          {uploading && uploadProgress > 0 && (
+            <div className="mt-4">
+              <div className="w-full bg-gray-200 rounded-full h-2">
+                <div 
+                  className="bg-blue-500 h-2 rounded-full transition-all duration-300"
+                  style={{ width: `${uploadProgress}%` }}
+                ></div>
+              </div>
+              <p className="text-sm text-gray-600 mt-2">
+                Uploading to Cloudinary... {uploadProgress}%
+              </p>
+            </div>
+          )}
           
           {/* Upload Limit Messages */}
           {images.length >= 4 ? (
@@ -453,19 +769,29 @@ const SplashScreen = () => {
             <div className="flex flex-col sm:flex-row justify-center gap-4 mt-6 pt-6 border-t">
               <button
                 onClick={clearAllUnsaved}
-                className="flex items-center justify-center px-6 py-3 border-2 border-red-500 text-red-500 rounded-lg hover:bg-red-50 transition duration-300 font-semibold"
+                disabled={loading}
+                className="flex items-center justify-center px-6 py-3 border-2 border-red-500 text-red-500 rounded-lg hover:bg-red-50 transition duration-300 font-semibold disabled:opacity-50"
               >
                 <FaTrash className="mr-2" />
                 Clear All ({images.length})
               </button>
               <button
                 onClick={saveAllImages}
-                disabled={isMaxLimitReached && savedImages.length >= 4}
-                className={`flex items-center justify-center px-6 py-3 text-white rounded-lg font-semibold transition duration-300 ${isMaxLimitReached ? 'opacity-50 cursor-not-allowed' : 'hover:opacity-90'} shadow-md`}
+                disabled={isMaxLimitReached && savedImages.length >= 4 || loading || images.some(img => img.uploading)}
+                className={`flex items-center justify-center px-6 py-3 text-white rounded-lg font-semibold transition duration-300 ${isMaxLimitReached || loading ? 'opacity-50 cursor-not-allowed' : 'hover:opacity-90'} shadow-md`}
                 style={{ backgroundColor: '#cc494c' }}
               >
-                <FaSave className="mr-2" />
-                {isMaxLimitReached ? 'Cannot Save (Max Reached)' : `Save All Images (${images.length})`}
+                {loading ? (
+                  <>
+                    <FaSpinner className="animate-spin mr-2" />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <FaSave className="mr-2" />
+                    {isMaxLimitReached ? 'Cannot Save (Max Reached)' : `Save All Images (${images.length})`}
+                  </>
+                )}
               </button>
             </div>
             
@@ -488,7 +814,7 @@ const SplashScreen = () => {
           <div className="flex items-center mb-4 sm:mb-0">
             <div className="w-3 h-8 rounded-sm mr-3" style={{ backgroundColor: '#cc494c' }}></div>
             <div>
-              <h3 className="text-xl font-semibold">Saved Images</h3>
+              <h3 className="text-xl font-semibold">Saved Splash Screens</h3>
               <p className="text-sm text-gray-600">Maximum 4 images allowed</p>
             </div>
           </div>
@@ -507,7 +833,8 @@ const SplashScreen = () => {
             {savedImages.length > 0 && (
               <button
                 onClick={clearAllSaved}
-                className="px-4 py-2 border border-red-500 text-red-500 rounded-lg hover:bg-red-50 transition duration-300 text-sm font-semibold"
+                disabled={loading}
+                className="px-4 py-2 border border-red-500 text-red-500 rounded-lg hover:bg-red-50 transition duration-300 text-sm font-semibold disabled:opacity-50"
               >
                 Clear All
               </button>
@@ -535,7 +862,7 @@ const SplashScreen = () => {
                 <p className="text-sm text-gray-600">Saved Image Positions:</p>
                 <div className="flex gap-2">
                   {[1, 2, 3, 4].map((pos) => {
-                    const hasImage = savedImages.some(img => img.position === pos)
+                    const hasImage = savedImages.some(img => img.position === pos);
                     return (
                       <div key={pos} className="flex items-center gap-2">
                         <div className={`w-6 h-6 flex items-center justify-center rounded-full text-white text-xs font-bold ${hasImage ? '' : 'opacity-30'}`}
@@ -549,7 +876,7 @@ const SplashScreen = () => {
                           {hasImage ? '✓' : '—'}
                         </span>
                       </div>
-                    )
+                    );
                   })}
                 </div>
               </div>
@@ -567,13 +894,13 @@ const SplashScreen = () => {
         ) : (
           <div className="text-center py-12 border-2 border-dashed border-gray-300 rounded-lg">
             <FaUpload className="text-4xl text-gray-300 mx-auto mb-4" />
-            <p className="text-gray-500 text-lg font-medium">No saved images yet</p>
-            <p className="text-gray-400 mt-2">Upload and save up to 4 images to see them here</p>
+            <p className="text-gray-500 text-lg font-medium">No saved splash screens yet</p>
+            <p className="text-gray-400 mt-2">Upload images to Cloudinary and save them to see here</p>
           </div>
         )}
       </div>
     </div>
-  )
-}
+  );
+};
 
-export default SplashScreen
+export default SplashScreen;

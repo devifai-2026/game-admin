@@ -1,20 +1,37 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { FaBars, FaSignOutAlt } from 'react-icons/fa'
 import { useNavigate } from 'react-router-dom'
+import authAPI from '../apis/auth.api'
 
 const Header = ({ onLogout, onSidebarToggle }) => {
   const user = JSON.parse(localStorage.getItem('user') || '{}')
   const navigate = useNavigate()
+  const [isLoggingOut, setIsLoggingOut] = useState(false)
 
-  const handleLogout = () => {
-    // Call the parent logout function if provided
-    if (onLogout && typeof onLogout === 'function') {
-      onLogout()
-    } else {
-      // Fallback logout function
-      localStorage.removeItem('authToken')
-      localStorage.removeItem('user')
+  const handleLogout = async () => {
+    setIsLoggingOut(true)
+    
+    try {
+      // Call API logout
+      const result = await authAPI.logoutAdmin()
+      
+      // Clear local storage
+      authAPI.clearAuthData()
+      
+      // Call parent logout function if provided
+      if (onLogout && typeof onLogout === 'function') {
+        onLogout()
+      } else {
+        // Navigate to login
+        navigate('/login')
+      }
+    } catch (error) {
+      console.error('Logout error:', error)
+      // Still clear local storage even if API fails
+      authAPI.clearAuthData()
       navigate('/login')
+    } finally {
+      setIsLoggingOut(false)
     }
   }
 
@@ -26,6 +43,7 @@ const Header = ({ onLogout, onSidebarToggle }) => {
           className="mr-4 p-2 rounded-lg hover:bg-gray-100 transition-colors"
           style={{ color: '#cc494c' }}
           aria-label="Toggle sidebar"
+          disabled={isLoggingOut}
         >
           <FaBars className="text-lg" />
         </button>
@@ -33,34 +51,48 @@ const Header = ({ onLogout, onSidebarToggle }) => {
           <h1 className="text-xl md:text-2xl font-bold" style={{ color: '#cc494c' }}>
             Admin Dashboard
           </h1>
-          <p className="text-gray-600 text-xs md:text-sm">Welcome back, {user.username || 'Admin'}!</p>
+          <p className="text-gray-600 text-xs md:text-sm">
+            Welcome back, {user.name || user.username || 'Admin'}!
+          </p>
         </div>
       </div>
       
       <div className="flex items-center space-x-3">
         <div className="hidden md:flex items-center space-x-2">
-          <div className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-sm"
-               style={{ backgroundColor: '#fea947' }}>
-            {user.username ? user.username.charAt(0).toUpperCase() : 'A'}
-          </div>
+        
           <div className="text-right">
-            <p className="text-sm font-semibold">{user.username || 'Admin User'}</p>
-            <p className="text-xs text-gray-500">Administrator</p>
+            <p className="text-sm font-semibold">{user.name || user.username || 'Admin User'}</p>
+            <p className="text-xs text-gray-500">{user.email}</p>
+          </div>
+            <div className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-sm"
+               style={{ backgroundColor: '#fea947' }}>
+            {user.name ? user.name.charAt(0).toUpperCase() : 
+             user.username ? user.username.charAt(0).toUpperCase() : 'A'}
           </div>
         </div>
-        
+{/*         
         <button
           onClick={handleLogout}
-          className="flex items-center space-x-2 px-3 py-2 md:px-4 md:py-2 rounded-lg font-semibold text-sm md:text-base transition duration-300 hover:opacity-90 group"
+          disabled={isLoggingOut}
+          className="flex items-center space-x-2 px-3 py-2 md:px-4 md:py-2 rounded-lg font-semibold text-sm md:text-base transition duration-300 hover:opacity-90 group disabled:opacity-70 disabled:cursor-not-allowed"
           style={{ 
             backgroundColor: '#cc494c',
             color: 'white'
           }}
           title="Logout"
         >
-          <span>Logout</span>
-          <FaSignOutAlt className="hidden md:inline group-hover:translate-x-1 transition-transform" />
-        </button>
+          {isLoggingOut ? (
+            <>
+              <span>Logging out...</span>
+              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+            </>
+          ) : (
+            <>
+              <span>Logout</span>
+              <FaSignOutAlt className="hidden md:inline group-hover:translate-x-1 transition-transform" />
+            </>
+          )}
+        </button> */}
       </div>
     </header>
   )

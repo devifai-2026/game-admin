@@ -17,6 +17,20 @@ function App() {
     }
   }, [])
 
+  // NEW: Watch for auth token changes (when localStorage is cleared)
+  useEffect(() => {
+    const handleStorageChange = () => {
+      const token = localStorage.getItem('authToken')
+      if (!token && isAuthenticated) {
+        setIsAuthenticated(false)
+        navigate('/login', { replace: true })
+      }
+    }
+
+    window.addEventListener('storage', handleStorageChange)
+    return () => window.removeEventListener('storage', handleStorageChange)
+  }, [isAuthenticated, navigate])
+
   const handleLogin = (token, user) => {
     localStorage.setItem('authToken', token)
     localStorage.setItem('user', JSON.stringify(user))
@@ -29,7 +43,7 @@ function App() {
     localStorage.removeItem('authToken')
     localStorage.removeItem('user')
     setIsAuthenticated(false)
-    navigate('/login')
+    navigate('/login', { replace: true })  // CHANGED: added replace: true
   }
 
   const handleNavigateToForgotPassword = () => {
