@@ -5,9 +5,11 @@ import {
   FaEye, 
   FaEyeSlash, 
   FaExclamationCircle,
-  FaArrowRight
+  FaArrowRight,
+  FaSpinner
 } from 'react-icons/fa';
 import { RiShieldKeyholeLine } from 'react-icons/ri';
+import authAPI from '../apis/auth.api';
 
 const Login = ({ onLogin, onNavigateToForgotPassword }) => {
   const [credentials, setCredentials] = useState({
@@ -33,51 +35,74 @@ const Login = ({ onLogin, onNavigateToForgotPassword }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    
+    // Validation
+    if (!credentials.email || !credentials.password) {
+      setError('Please enter both email and password');
+      return;
+    }
+
     setLoading(true);
 
-    // Simulate API delay for better UX
-    await new Promise(resolve => setTimeout(resolve, 800));
-
     try {
-      // Demo authentication - replace with actual API call
-      if (credentials.email === 'admin@example.com' && credentials.password === 'admin123') {
-        const token = 'demo-auth-token';
-        const user = { 
-          email: credentials.email,
-          role: 'admin',
-          lastLogin: new Date().toISOString()
-        };
+      const result = await authAPI.loginAdmin(credentials.email, credentials.password);
+      
+      console.log('Login result:', result); // Add this for debugging
+      
+      if (result.success) {
+        const { data } = result;
         
-        localStorage.setItem('authToken', token);
-        localStorage.setItem('user', JSON.stringify(user));
+        console.log('Login data:', data); // Add this for debugging
         
+        // Store auth data
+        localStorage.setItem('token', data.token);
+        localStorage.setItem('user', JSON.stringify({
+          _id: data._id || data.id,
+          name: data.name || data.username || 'Admin',
+          email: data.email,
+          lastLogin: data.lastLogin || new Date().toISOString(),
+          role: data.role || 'admin'
+        }));
+        
+        // Handle remember me
         if (rememberMe) {
           localStorage.setItem('rememberedEmail', credentials.email);
         } else {
           localStorage.removeItem('rememberedEmail');
         }
         
-        onLogin(token, user);
+        // Call parent login handler
+        onLogin(data.token, {
+          _id: data._id || data.id,
+          name: data.name || data.username || 'Admin',
+          email: data.email,
+          lastLogin: data.lastLogin || new Date().toISOString(),
+          role: data.role || 'admin'
+        });
       } else {
-        throw new Error('Invalid email or password');
+        setError(result.message || 'Login failed');
+        triggerErrorAnimation();
       }
     } catch (err) {
-      setError(err.message);
-      // Shake animation for error
-      if (formRef.current) {
-        formRef.current.classList.add('animate-shake');
-        setTimeout(() => {
-          formRef.current?.classList.remove('animate-shake');
-        }, 500);
-      }
+      console.error('Login error:', err); // Add this for debugging
+      setError(err.message || 'An error occurred during login');
+      triggerErrorAnimation();
     } finally {
       setLoading(false);
     }
   };
 
+  const triggerErrorAnimation = () => {
+    if (formRef.current) {
+      formRef.current.classList.add('animate-shake');
+      setTimeout(() => {
+        formRef.current?.classList.remove('animate-shake');
+      }, 500);
+    }
+  };
+
   const handleInputChange = (field, value) => {
     setCredentials(prev => ({ ...prev, [field]: value }));
-    // Clear error when user starts typing
     if (error) setError('');
   };
 
@@ -86,12 +111,12 @@ const Login = ({ onLogin, onNavigateToForgotPassword }) => {
       email: 'admin@example.com',
       password: 'admin123'
     });
-    // Auto focus on password field after setting demo credentials
-    document.querySelector('input[type="password"]')?.focus();
+    // Focus on password field
+    const passwordInput = document.querySelector('input[type="password"]');
+    if (passwordInput) passwordInput.focus();
   };
 
   const handleKeyPress = (e) => {
-    // Submit form on Enter key press
     if (e.key === 'Enter' && !loading) {
       handleSubmit(e);
     }
@@ -107,8 +132,8 @@ const Login = ({ onLogin, onNavigateToForgotPassword }) => {
       </div>
 
       <div className="relative z-10 w-full max-w-md" ref={formRef}>
-        {/* Login Card */}
-        <div className="bg-white/95 backdrop-blur-xl rounded-3xl shadow-2xl p-8 border border-white/20 transform transition-all duration-300 hover:shadow-3xl">
+        {/* Wrap everything in a form element */}
+        <form onSubmit={handleSubmit} className="bg-white/95 backdrop-blur-xl rounded-3xl shadow-2xl p-8 border border-white/20 transform transition-all duration-300 hover:shadow-3xl">
           {/* Logo/Header */}
           <div className="text-center mb-10">
             <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl mb-5 bg-gradient-to-br from-red-500 to-orange-500 shadow-lg transform transition-transform hover:scale-105">
@@ -123,12 +148,13 @@ const Login = ({ onLogin, onNavigateToForgotPassword }) => {
           <div className="space-y-6">
             {/* Email Input */}
             <div className="space-y-3">
-              <label className="flex items-center text-sm font-medium text-gray-700">
+              <label htmlFor="email" className="flex items-center text-sm font-medium text-gray-700">
                 <FaEnvelope className="w-4 h-4 mr-2 text-red-500" />
                 Email Address
               </label>
               <div className="relative group">
                 <input
+                  id="email"
                   type="email"
                   value={credentials.email}
                   onChange={(e) => handleInputChange('email', e.target.value)}
@@ -158,12 +184,13 @@ const Login = ({ onLogin, onNavigateToForgotPassword }) => {
 
             {/* Password Input */}
             <div className="space-y-3">
-              <label className="flex items-center text-sm font-medium text-gray-700">
+              <label htmlFor="password" className="flex items-center text-sm font-medium text-gray-700">
                 <FaLock className="w-4 h-4 mr-2 text-red-500" />
                 Password
               </label>
               <div className="relative group">
                 <input
+                  id="password"
                   type={showPassword ? 'text' : 'password'}
                   value={credentials.password}
                   onChange={(e) => handleInputChange('password', e.target.value)}
@@ -188,35 +215,16 @@ const Login = ({ onLogin, onNavigateToForgotPassword }) => {
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-red-500 transition-colors duration-300"
                   disabled={loading}
+                  aria-label={showPassword ? "Hide password" : "Show password"}
                 >
-                  {showPassword ? <FaEyeSlash className="w-5 h-5" /> : <FaEye className="w-5 h-5" />}
+                  {showPassword ? <FaEye className="w-5 h-5" /> : <FaEyeSlash className="w-5 h-5" />}
                 </button>
               </div>
             </div>
 
             {/* Remember Me & Forgot Password */}
-            <div className="flex items-center justify-between">
-              <label className="flex items-center space-x-3 cursor-pointer group">
-                <div className={`relative w-5 h-5 rounded border-2 transition-all duration-300 ${
-                  rememberMe 
-                    ? 'bg-red-500 border-red-500' 
-                    : 'border-gray-300 group-hover:border-red-400'
-                }`}>
-                  {rememberMe && (
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <div className="w-2 h-2 bg-white rounded-sm"></div>
-                    </div>
-                  )}
-                </div>
-                <input
-                  type="checkbox"
-                  checked={rememberMe}
-                  onChange={(e) => setRememberMe(e.target.checked)}
-                  className="sr-only"
-                  disabled={loading}
-                />
-                <span className="text-sm text-gray-600 group-hover:text-gray-800 transition-colors">Remember me</span>
-              </label>
+            <div className="flex items-center justify-end">
+             
               
               <button
                 type="button"
@@ -235,24 +243,26 @@ const Login = ({ onLogin, onNavigateToForgotPassword }) => {
                 <FaExclamationCircle className="w-5 h-5 text-red-500 flex-shrink-0 animate-pulse" />
                 <span className="text-sm text-red-600 flex-1">{error}</span>
                 <button
+                  type="button"
                   onClick={() => setError('')}
                   className="text-red-400 hover:text-red-600 transition-colors"
+                  aria-label="Dismiss error"
                 >
                   ×
                 </button>
               </div>
             )}
 
-            {/* Submit Button */}
+            {/* Submit Button - Change to type="submit" */}
             <button
-              onClick={handleSubmit}
+              type="submit"
               disabled={loading || !credentials.email || !credentials.password}
               className="w-full py-4 bg-gradient-to-r from-red-600 via-orange-500 to-red-600 hover:from-red-700 hover:via-orange-600 hover:to-red-700 text-white font-semibold rounded-xl shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none group relative overflow-hidden"
             >
               <span className="relative z-10 flex items-center justify-center">
                 {loading ? (
                   <>
-                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-3"></div>
+                    <FaSpinner className="animate-spin w-5 h-5 mr-3" />
                     Signing in...
                   </>
                 ) : (
@@ -265,20 +275,9 @@ const Login = ({ onLogin, onNavigateToForgotPassword }) => {
               <span className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></span>
             </button>
 
-            {/* Demo Login */}
-            <button
-              type="button"
-              onClick={handleDemoLogin}
-              disabled={loading}
-              className="w-full py-3.5 border-2 border-gray-200 hover:border-red-300 text-gray-700 font-medium rounded-xl hover:bg-gradient-to-r hover:from-red-50/50 hover:to-orange-50/50 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed group"
-            >
-              <div className="flex items-center justify-center space-x-2">
-                <RiShieldKeyholeLine className="w-4 h-4 text-red-500" />
-                <span>Use Demo Credentials</span>
-              </div>
-            </button>
+         
           </div>
-        </div>
+        </form>
       </div>
 
       {/* Add Tailwind CSS animations */}

@@ -10,16 +10,19 @@ import UserManagement from '../components/UserManagement'
 const Dashboard = ({ onLogout }) => {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
 
-  // This function will be passed to Sidebar
   const toggleSidebar = () => {
     setIsSidebarCollapsed(!isSidebarCollapsed)
   }
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Pass toggle function to Header and current state to Sidebar */}
+      {/* Pass onLogout to both Header and Sidebar */}
       <Header onLogout={onLogout} onSidebarToggle={toggleSidebar} />
-      <Sidebar isCollapsed={isSidebarCollapsed} onToggle={toggleSidebar} />
+      <Sidebar 
+        isCollapsed={isSidebarCollapsed} 
+        onToggle={toggleSidebar} 
+        onLogout={onLogout} 
+      />
       
       <main className={`pt-20 transition-all duration-300 p-6 ${
         isSidebarCollapsed ? 'md:ml-20 ml-0' : 'md:ml-64 ml-0'

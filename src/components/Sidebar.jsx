@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { NavLink, useLocation } from 'react-router-dom'
+import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { 
   FaImage,  
   FaFilm,
@@ -12,10 +12,13 @@ import {
   FaSignOutAlt
 } from 'react-icons/fa'
 import { MdSpaceDashboard } from 'react-icons/md'
+import authAPI from '../apis/auth.api'
 
-const Sidebar = ({ isCollapsed = false, onToggle }) => {
+const Sidebar = ({ isCollapsed = false, onToggle, onLogout }) => {
   const [isMobileOpen, setIsMobileOpen] = useState(false)
+  const [isLoggingOut, setIsLoggingOut] = useState(false)
   const location = useLocation()
+  const navigate = useNavigate() // Add useNavigate
 
   const navItems = [
     { 
@@ -43,6 +46,26 @@ const Sidebar = ({ isCollapsed = false, onToggle }) => {
       shortLabel: 'Users'
     },
   ]
+
+// handleLogout function in Sidebar with this:
+
+const handleLogout = async () => {
+  setIsLoggingOut(true)
+  
+  try {
+    // Call API logout
+    await authAPI.logoutAdmin()
+  } catch (error) {
+    console.error('Logout error:', error)
+  } finally {
+    // Always call onLogout callback - this handles everything
+    // (clears storage, updates App state, navigates)
+    if (onLogout && typeof onLogout === 'function') {
+      onLogout()
+    }
+    setIsLoggingOut(false)
+  }
+}
 
   // Handle sidebar toggle
   const handleToggle = () => {
@@ -101,6 +124,7 @@ const Sidebar = ({ isCollapsed = false, onToggle }) => {
             }`}
             style={{ color: '#fea947' }}
             aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+            disabled={isLoggingOut}
           >
             {isCollapsed ? <FaChevronRight /> : <FaChevronLeft />}
           </button>
@@ -112,6 +136,7 @@ const Sidebar = ({ isCollapsed = false, onToggle }) => {
             className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
             style={{ color: '#fea947' }}
             aria-label="Close menu"
+            disabled={isLoggingOut}
           >
             <FaTimes />
           </button>
@@ -119,7 +144,7 @@ const Sidebar = ({ isCollapsed = false, onToggle }) => {
       </div>
 
       {/* Navigation Items */}
-      <nav className="p-2">
+      <nav className="p-2 flex-1">
         <ul className="space-y-1">
           {navItems.map((item) => (
             <li key={item.path}>
@@ -152,7 +177,31 @@ const Sidebar = ({ isCollapsed = false, onToggle }) => {
         </ul>
       </nav>
       
-     
+      {/* Logout Button at the Bottom - EXACT SAME STYLING AS HEADER */}
+      <div className="p-4 border-t bg-white">
+        <button
+          onClick={handleLogout}
+          disabled={isLoggingOut}
+          className="flex items-center justify-center space-x-2 w-full px-4 py-3 rounded-lg font-semibold text-sm transition duration-300 hover:opacity-90 disabled:opacity-70 disabled:cursor-not-allowed group"
+          style={{ 
+            backgroundColor: '#cc494c',
+            color: 'white'
+          }}
+          title="Logout"
+        >
+          {isLoggingOut ? (
+            <>
+              <span>Logging out...</span>
+              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+            </>
+          ) : (
+            <>
+              <span>Logout</span>
+              <FaSignOutAlt className="group-hover:translate-x-1 transition-transform" />
+            </>
+          )}
+        </button>
+      </div>
     </>
   )
 
@@ -164,6 +213,7 @@ const Sidebar = ({ isCollapsed = false, onToggle }) => {
         className="md:hidden fixed top-4 left-4 z-50 p-2.5 rounded-lg bg-white shadow-lg"
         style={{ color: '#cc494c' }}
         aria-label="Open menu"
+        disabled={isLoggingOut}
       >
         <FaBars />
       </button>
@@ -172,21 +222,25 @@ const Sidebar = ({ isCollapsed = false, onToggle }) => {
       <aside className={`hidden md:block h-screen bg-white shadow-lg fixed left-0 top-0 pt-20 z-30 transition-all duration-300 ease-in-out ${
         isCollapsed ? 'w-20' : 'w-64'
       }`}>
-        <SidebarContent />
+        <div className="h-full flex flex-col">
+          <SidebarContent />
+        </div>
       </aside>
 
       {/* Mobile Sidebar */}
       <aside className={`md:hidden fixed inset-y-0 left-0 z-40 bg-white shadow-xl transform transition-transform duration-300 ease-in-out ${
         isMobileOpen ? 'translate-x-0' : '-translate-x-full'
       } w-64 pt-20`}>
-        <SidebarContent mobile={true} />
+        <div className="h-full flex flex-col">
+          <SidebarContent mobile={true} />
+        </div>
       </aside>
 
       {/* Mobile Overlay */}
       {isMobileOpen && (
         <div 
           className="md:hidden fixed inset-0 bg-black bg-opacity-50 z-30 transition-opacity duration-300"
-          onClick={handleMobileToggle}
+          onClick={() => !isLoggingOut && handleMobileToggle()}
         ></div>
       )}
     </>

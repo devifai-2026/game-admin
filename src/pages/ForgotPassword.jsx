@@ -9,7 +9,7 @@ import {
   FaEyeSlash,
   FaEye
 } from 'react-icons/fa';
-import { RiShieldKeyholeLine } from 'react-icons/ri';
+import authAPI from '../apis/auth.api'; // Import the auth API
 
 const ForgotPassword = ({ onNavigateToLogin }) => {
   const [step, setStep] = useState('email'); // email, otp, reset-password, success
@@ -18,17 +18,19 @@ const ForgotPassword = ({ onNavigateToLogin }) => {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [focusedField, setFocusedField] = useState(null);
-  const [generatedOtp, setGeneratedOtp] = useState('');
   const [timer, setTimer] = useState(0);
+  const [resetToken, setResetToken] = useState('');
   const formRef = useRef(null);
 
   // Handle email submission
   const handleEmailSubmit = async () => {
     setError('');
+    setSuccessMessage('');
     
     if (!email.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) {
       setError('Please enter a valid email address');
@@ -37,18 +39,21 @@ const ForgotPassword = ({ onNavigateToLogin }) => {
 
     setLoading(true);
     
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 800));
-    
-    // Generate static OTP for testing
-    const mockOtp = '123456';
-    setGeneratedOtp(mockOtp);
-    
-    // Set timer for resend (60 seconds)
-    setTimer(60);
-    
-    setLoading(false);
-    setStep('otp');
+    try {
+      const result = await authAPI.forgotPassword(email);
+      
+      if (result.success) {
+        setSuccessMessage('Verification code sent to your email');
+        setTimer(60); // Start 60-second timer for resend
+        setStep('otp');
+      } else {
+        setError(result.message || 'Failed to send verification code');
+      }
+    } catch (err) {
+      setError(err.message || 'An error occurred. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Handle OTP input
@@ -84,14 +89,21 @@ const ForgotPassword = ({ onNavigateToLogin }) => {
     }
 
     setLoading(true);
-    await new Promise(resolve => setTimeout(resolve, 800));
-
-    if (enteredOtp === generatedOtp) {
-      setError('');
-      setLoading(false);
-      setStep('reset-password');
-    } else {
-      setError('Invalid OTP. Please try again.');
+    
+    try {
+      const result = await authAPI.verifyOtp(email, enteredOtp);
+      
+      if (result.success) {
+        setResetToken(result.data.resetToken || result.data.token);
+        setError('');
+        setSuccessMessage('OTP verified successfully');
+        setStep('reset-password');
+      } else {
+        setError(result.message || 'Invalid OTP. Please try again.');
+      }
+    } catch (err) {
+      setError(err.message || 'An error occurred. Please try again.');
+    } finally {
       setLoading(false);
     }
   };
@@ -99,6 +111,7 @@ const ForgotPassword = ({ onNavigateToLogin }) => {
   // Handle password reset
   const handlePasswordReset = async () => {
     setError('');
+    setSuccessMessage('');
 
     if (newPassword.length < 6) {
       setError('Password must be at least 6 characters');
@@ -111,23 +124,43 @@ const ForgotPassword = ({ onNavigateToLogin }) => {
     }
 
     setLoading(true);
-    await new Promise(resolve => setTimeout(resolve, 800));
     
-    setLoading(false);
-    setStep('success');
+    try {
+      const result = await authAPI.resetPassword(resetToken, newPassword);
+      
+      if (result.success) {
+        setSuccessMessage('Password reset successful!');
+        setStep('success');
+      } else {
+        setError(result.message || 'Failed to reset password');
+      }
+    } catch (err) {
+      setError(err.message || 'An error occurred. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Resend OTP
   const handleResendOtp = async () => {
     setError('');
     setLoading(true);
-    await new Promise(resolve => setTimeout(resolve, 800));
     
-    const mockOtp = '123456';
-    setGeneratedOtp(mockOtp);
-    setOtp(['', '', '', '', '', '']);
-    setTimer(60);
-    setLoading(false);
+    try {
+      const result = await authAPI.forgotPassword(email);
+      
+      if (result.success) {
+        setOtp(['', '', '', '', '', '']);
+        setTimer(60);
+        setSuccessMessage('New verification code sent!');
+      } else {
+        setError(result.message || 'Failed to resend code');
+      }
+    } catch (err) {
+      setError(err.message || 'An error occurred. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Timer countdown
@@ -146,7 +179,8 @@ const ForgotPassword = ({ onNavigateToLogin }) => {
     setNewPassword('');
     setConfirmPassword('');
     setError('');
-    setGeneratedOtp('');
+    setSuccessMessage('');
+    setResetToken('');
     setTimer(0);
     onNavigateToLogin();
   };
@@ -173,6 +207,7 @@ const ForgotPassword = ({ onNavigateToLogin }) => {
             <button
               onClick={() => onNavigateToLogin()}
               className="absolute left-0 top-0 inline-flex items-center text-gray-600 hover:text-gray-800 transition-colors"
+              disabled={loading}
             >
               <FaArrowLeft className="w-4 h-4" />
             </button>
@@ -185,6 +220,14 @@ const ForgotPassword = ({ onNavigateToLogin }) => {
             </h1>
             <p className="text-gray-600 text-sm">Secure your account in a few steps</p>
           </div>
+
+          {/* Success Message */}
+          {successMessage && (
+            <div className="flex items-center space-x-3 p-4 bg-green-50 border border-green-200 rounded-xl mb-4">
+              <FaCheckCircle className="w-5 h-5 text-green-500 flex-shrink-0" />
+              <span className="text-sm text-green-600">{successMessage}</span>
+            </div>
+          )}
 
           {/* Step 1: Email */}
           {step === 'email' && (
@@ -326,123 +369,123 @@ const ForgotPassword = ({ onNavigateToLogin }) => {
             </div>
           )}
 
-        {/* Step 3: Reset Password */}
-{step === 'reset-password' && (
-  <div className="space-y-6">
-    <div className="space-y-3">
-      <label className="flex items-center text-sm font-medium text-gray-700">
-        <FaLock className="w-4 h-4 mr-2 text-red-500" />
-        New Password
-      </label>
-      <div className="relative group">
-        <input
-          type={showPassword ? 'text' : 'password'}
-          value={newPassword}
-          onChange={(e) => {
-            setNewPassword(e.target.value);
-            if (error) setError('');
-          }}
-          onFocus={() => setFocusedField('password')}
-          onBlur={() => setFocusedField(null)}
-          className={`w-full px-5 py-3.5 pl-12 pr-12 bg-gray-50/70 border-2 rounded-xl focus:outline-none transition-all duration-300 ${
-            focusedField === 'password' 
-              ? 'border-red-500 ring-4 ring-red-500/10' 
-              : 'border-gray-200'
-          } group-hover:border-red-300`}
-          placeholder="Enter new password"
-          required
-          disabled={loading}
-        />
-        <FaLock className={`absolute left-4 top-1/2 transform -translate-y-1/2 w-4 h-4 transition-colors duration-300 ${
-          focusedField === 'password' ? 'text-red-500' : 'text-gray-400'
-        }`} />
-        <button
-          type="button"
-          onClick={() => setShowPassword(!showPassword)}
-          className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-red-500 transition-colors duration-300"
-          disabled={loading}
-        >
-          {showPassword ? (
-            <FaEyeSlash className="w-5 h-5" />
-          ) : (
-            <FaEye className="w-5 h-5" />
+          {/* Step 3: Reset Password */}
+          {step === 'reset-password' && (
+            <div className="space-y-6">
+              <div className="space-y-3">
+                <label className="flex items-center text-sm font-medium text-gray-700">
+                  <FaLock className="w-4 h-4 mr-2 text-red-500" />
+                  New Password
+                </label>
+                <div className="relative group">
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    value={newPassword}
+                    onChange={(e) => {
+                      setNewPassword(e.target.value);
+                      if (error) setError('');
+                    }}
+                    onFocus={() => setFocusedField('password')}
+                    onBlur={() => setFocusedField(null)}
+                    className={`w-full px-5 py-3.5 pl-12 pr-12 bg-gray-50/70 border-2 rounded-xl focus:outline-none transition-all duration-300 ${
+                      focusedField === 'password' 
+                        ? 'border-red-500 ring-4 ring-red-500/10' 
+                        : 'border-gray-200'
+                    } group-hover:border-red-300`}
+                    placeholder="Enter new password"
+                    required
+                    disabled={loading}
+                  />
+                  <FaLock className={`absolute left-4 top-1/2 transform -translate-y-1/2 w-4 h-4 transition-colors duration-300 ${
+                    focusedField === 'password' ? 'text-red-500' : 'text-gray-400'
+                  }`} />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-red-500 transition-colors duration-300"
+                    disabled={loading}
+                  >
+                    {showPassword ? (
+                      <FaEyeSlash className="w-5 h-5" />
+                    ) : (
+                      <FaEye className="w-5 h-5" />
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <label className="flex items-center text-sm font-medium text-gray-700">
+                  <FaLock className="w-4 h-4 mr-2 text-red-500" />
+                  Confirm Password
+                </label>
+                <div className="relative group">
+                  <input
+                    type={showConfirmPassword ? 'text' : 'password'}
+                    value={confirmPassword}
+                    onChange={(e) => {
+                      setConfirmPassword(e.target.value);
+                      if (error) setError('');
+                    }}
+                    onFocus={() => setFocusedField('confirm')}
+                    onBlur={() => setFocusedField(null)}
+                    onKeyPress={(e) => handleKeyPress(e, handlePasswordReset)}
+                    className={`w-full px-5 py-3.5 pl-12 pr-12 bg-gray-50/70 border-2 rounded-xl focus:outline-none transition-all duration-300 ${
+                      focusedField === 'confirm' 
+                        ? 'border-red-500 ring-4 ring-red-500/10' 
+                        : 'border-gray-200'
+                    } group-hover:border-red-300`}
+                    placeholder="Confirm password"
+                    required
+                    disabled={loading}
+                  />
+                  <FaLock className={`absolute left-4 top-1/2 transform -translate-y-1/2 w-4 h-4 transition-colors duration-300 ${
+                    focusedField === 'confirm' ? 'text-red-500' : 'text-gray-400'
+                  }`} />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-red-500 transition-colors duration-300"
+                    disabled={loading}
+                  >
+                    {showConfirmPassword ? (
+                      <FaEyeSlash className="w-5 h-5" />
+                    ) : (
+                      <FaEye className="w-5 h-5" />
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {error && (
+                <div className="flex items-center space-x-3 p-4 bg-red-50 border border-red-200 rounded-xl">
+                  <FaExclamationCircle className="w-5 h-5 text-red-500 flex-shrink-0" />
+                  <span className="text-sm text-red-600">{error}</span>
+                </div>
+              )}
+
+              <button
+                onClick={handlePasswordReset}
+                disabled={loading || !newPassword || !confirmPassword}
+                className="w-full py-4 bg-gradient-to-r from-red-600 via-orange-500 to-red-600 hover:from-red-700 hover:via-orange-600 hover:to-red-700 text-white font-semibold rounded-xl shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed group relative overflow-hidden"
+              >
+                <span className="relative z-10 flex items-center justify-center">
+                  {loading ? (
+                    <>
+                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-3"></div>
+                      Resetting...
+                    </>
+                  ) : (
+                    <>
+                      Reset Password
+                      <FaArrowRight className="ml-2 w-4 h-4 transform group-hover:translate-x-1 transition-transform" />
+                    </>
+                  )}
+                </span>
+                <span className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></span>
+              </button>
+            </div>
           )}
-        </button>
-      </div>
-    </div>
-
-    <div className="space-y-3">
-      <label className="flex items-center text-sm font-medium text-gray-700">
-        <FaLock className="w-4 h-4 mr-2 text-red-500" />
-        Confirm Password
-      </label>
-      <div className="relative group">
-        <input
-          type={showConfirmPassword ? 'text' : 'password'}
-          value={confirmPassword}
-          onChange={(e) => {
-            setConfirmPassword(e.target.value);
-            if (error) setError('');
-          }}
-          onFocus={() => setFocusedField('confirm')}
-          onBlur={() => setFocusedField(null)}
-          onKeyPress={(e) => handleKeyPress(e, handlePasswordReset)}
-          className={`w-full px-5 py-3.5 pl-12 pr-12 bg-gray-50/70 border-2 rounded-xl focus:outline-none transition-all duration-300 ${
-            focusedField === 'confirm' 
-              ? 'border-red-500 ring-4 ring-red-500/10' 
-              : 'border-gray-200'
-          } group-hover:border-red-300`}
-          placeholder="Confirm password"
-          required
-          disabled={loading}
-        />
-        <FaLock className={`absolute left-4 top-1/2 transform -translate-y-1/2 w-4 h-4 transition-colors duration-300 ${
-          focusedField === 'confirm' ? 'text-red-500' : 'text-gray-400'
-        }`} />
-        <button
-          type="button"
-          onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-          className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-red-500 transition-colors duration-300"
-          disabled={loading}
-        >
-          {showConfirmPassword ? (
-            <FaEyeSlash className="w-5 h-5" />
-          ) : (
-            <FaEye className="w-5 h-5" />
-          )}
-        </button>
-      </div>
-    </div>
-
-    {error && (
-      <div className="flex items-center space-x-3 p-4 bg-red-50 border border-red-200 rounded-xl">
-        <FaExclamationCircle className="w-5 h-5 text-red-500 flex-shrink-0" />
-        <span className="text-sm text-red-600">{error}</span>
-      </div>
-    )}
-
-    <button
-      onClick={handlePasswordReset}
-      disabled={loading || !newPassword || !confirmPassword}
-      className="w-full py-4 bg-gradient-to-r from-red-600 via-orange-500 to-red-600 hover:from-red-700 hover:via-orange-600 hover:to-red-700 text-white font-semibold rounded-xl shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed group relative overflow-hidden"
-    >
-      <span className="relative z-10 flex items-center justify-center">
-        {loading ? (
-          <>
-            <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-3"></div>
-            Resetting...
-          </>
-        ) : (
-          <>
-            Reset Password
-            <FaArrowRight className="ml-2 w-4 h-4 transform group-hover:translate-x-1 transition-transform" />
-          </>
-        )}
-      </span>
-      <span className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></span>
-    </button>
-  </div>
-)}
 
           {/* Step 4: Success */}
           {step === 'success' && (
