@@ -9,7 +9,8 @@ import {
   FaHome,
   FaBars,
   FaTimes,
-  FaSignOutAlt
+  FaSignOutAlt,
+  FaPrayingHands
 } from 'react-icons/fa'
 import { MdSpaceDashboard } from 'react-icons/md'
 import authAPI from '../apis/auth.api'
@@ -32,6 +33,12 @@ const Sidebar = ({ isCollapsed = false, onToggle, onLogout }) => {
       label: 'Gods', 
       icon: <MdSpaceDashboard className="text-lg" />,
       shortLabel: 'Gods'
+    },
+    { 
+      path: '/dashboard/god-idol', 
+      label: 'God Idol', 
+      icon: <FaPrayingHands className="text-lg" />,
+      shortLabel: 'Idol'
     },
     { 
       path: '/dashboard/animations', 
