@@ -5,6 +5,7 @@ import Sidebar from '../components/Sidebar'
 import SplashScreen from '../components/SplashScreen'
 import Gods from '../components/Gods'
 import Animations from '../components/Animations'
+import GodIdol from '../components/GodIdol'
 import UserManagement from '../components/UserManagement'
 
 const Dashboard = ({ onLogout }) => {
@@ -31,6 +32,7 @@ const Dashboard = ({ onLogout }) => {
           <Route path="splash" element={<SplashScreen />} />
           <Route path="gods" element={<Gods />} />
           <Route path="animations" element={<Animations />} />
+          <Route path="god-idol" element={<GodIdol />} />
           <Route path="users" element={<UserManagement />} />
           <Route path="/" element={<Navigate to="/dashboard/splash" />} />
         </Routes>
