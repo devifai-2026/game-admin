@@ -10,7 +10,8 @@ import {
   FaBars,
   FaTimes,
   FaSignOutAlt,
-  FaPrayingHands
+  FaPrayingHands,
+  FaCog
 } from 'react-icons/fa'
 import { MdSpaceDashboard } from 'react-icons/md'
 import authAPI from '../apis/auth.api'
@@ -51,6 +52,12 @@ const Sidebar = ({ isCollapsed = false, onToggle, onLogout }) => {
       label: 'User Management', 
       icon: <FaUsers className="text-lg" />,
       shortLabel: 'Users'
+    },
+    { 
+      path: '/dashboard/settings', 
+      label: 'Settings', 
+      icon: <FaCog className="text-lg" />,
+      shortLabel: 'Settings'
     },
   ]
 

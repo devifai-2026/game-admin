@@ -7,6 +7,7 @@ import Gods from '../components/Gods'
 import Animations from '../components/Animations'
 import GodIdol from '../components/GodIdol'
 import UserManagement from '../components/UserManagement'
+import Settings from '../components/Settings'
 
 const Dashboard = ({ onLogout }) => {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
@@ -34,6 +35,7 @@ const Dashboard = ({ onLogout }) => {
           <Route path="animations" element={<Animations />} />
           <Route path="god-idol" element={<GodIdol />} />
           <Route path="users" element={<UserManagement />} />
+          <Route path="settings" element={<Settings />} />
           <Route path="/" element={<Navigate to="/dashboard/splash" />} />
         </Routes>
       </main>

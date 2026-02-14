@@ -120,6 +120,35 @@ const godAPI = {
     }
   },
 
+  // Upload God Idol Zip
+  uploadGodIdolZip: async (godId, title, zipFile, onProgress) => {
+    try {
+      const formData = new FormData();
+      formData.append('godId', godId);
+      if (title) formData.append('title', title); 
+      formData.append('zip', zipFile);
+
+      console.log('Uploading God Idol Zip:', { godId, title, fileName: zipFile.name });
+
+      const response = await axiosInstance.uploadFile('/god-idol/upload-zip', formData, onProgress, {
+        timeout: 600000 // 10 minutes timeout
+      });
+      
+      return {
+        success: true,
+        data: response,
+        message: 'God Idol Zip uploaded successfully'
+      };
+    } catch (error) {
+      console.error('Upload God Idol Zip error:', error);
+      return {
+        success: false,
+        message: error.message || 'Failed to upload God Idol Zip',
+        error: error.data
+      };
+    }
+  },
+
   // Upload image to Cloudinary
   uploadToCloudinary: async (file) => {
     const CLOUDINARY_CLOUD_NAME = 'dlbpeypom'; // Same as splash

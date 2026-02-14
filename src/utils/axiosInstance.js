@@ -93,10 +93,13 @@ axiosInstance.interceptors.response.use(
 );
 
 // Helper function for file uploads (with progress tracking)
-axiosInstance.uploadFile = async (url, formData, onUploadProgress) => {
+// Helper function for file uploads (with progress tracking)
+axiosInstance.uploadFile = async (url, formData, onUploadProgress, config = {}) => {
   return axiosInstance.post(url, formData, {
+    ...config, // Spread custom config (like timeout) here
     headers: {
       'Content-Type': 'multipart/form-data',
+      ...(config.headers || {}), // Merge custom headers if any
     },
     onUploadProgress: (progressEvent) => {
       if (onUploadProgress && progressEvent.total) {
