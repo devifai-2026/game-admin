@@ -1,748 +1,606 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { FaUpload, FaTrash, FaSave, FaEye, FaTimes, FaImage, FaEdit, FaCheck, FaTimesCircle, FaCamera } from 'react-icons/fa'
+import { 
+  FaUpload, FaTrash, FaSave, FaEye, FaTimes, FaFilm, FaEdit, FaCheck, 
+  FaTimesCircle, FaCamera, FaSpinner, FaPlay, FaFileArchive 
+} from 'react-icons/fa'
+import godAPI from '../apis/god.api'
+import godIdolAPI from '../apis/godIdol.api'
 
-// SVG Data URIs for God Placeholders/Icons
-const ganeshaIcon = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100'><circle cx='50' cy='50' r='40' fill='%23FF9933'/><text x='50' y='55' font-size='40' text-anchor='middle' fill='white'>🐘</text></svg>"
-const shivaIcon = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100'><circle cx='50' cy='50' r='40' fill='%233366FF'/><text x='50' y='55' font-size='40' text-anchor='middle' fill='white'>🔱</text></svg>"
-const krishnaIcon = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100'><circle cx='50' cy='50' r='40' fill='%2300CCFF'/><text x='50' y='55' font-size='40' text-anchor='middle' fill='white'>🪈</text></svg>"
-const lakshmiIcon = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100'><circle cx='50' cy='50' r='40' fill='%23FF3399'/><text x='50' y='55' font-size='40' text-anchor='middle' fill='white'>🪷</text></svg>"
-
-const categories = [
-  { id: 1, name: 'Lord Ganesha', image: ganeshaIcon, color: '#FF9933' },
-  { id: 2, name: 'Lord Shiva', image: shivaIcon, color: '#3366FF' },
-  { id: 3, name: 'Lord Krishna', image: krishnaIcon, color: '#00CCFF' },
-  { id: 4, name: 'Goddess Lakshmi', image: lakshmiIcon, color: '#FF3399' }
-]
-
-const GodIdol = () => {
-  const [selectedCategory, setSelectedCategory] = useState(null)
-  
-  // Initialize with empty arrays for all categories
-  const initialCategoryImages = {
-    1: [],
-    2: [],
-    3: [],
-    4: []
+const formatDate = (dateString) => {
+  if (!dateString) return 'Unknown date'
+  try {
+    const date = new Date(dateString)
+    return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  } catch (e) {
+    return 'Invalid date'
   }
-  
-  const [categoryImages, setCategoryImages] = useState(initialCategoryImages)
-  const [savedCategoryImages, setSavedCategoryImages] = useState(initialCategoryImages)
-  const [viewImage, setViewImage] = useState(null)
-  const [editingImage, setEditingImage] = useState(null)
-  const [editForm, setEditForm] = useState({ name: '', category: '' })
-  const [newImageFile, setNewImageFile] = useState(null)
-  const editFileInputRef = useRef(null)
+}
 
-  // Load saved images from localStorage on component mount
-  useEffect(() => {
-    const saved = JSON.parse(localStorage.getItem('godIdolImages') || '{}')
-    
-    // Ensure all categories have arrays, even if not in localStorage
-    const initializedSaved = { ...initialCategoryImages, ...saved }
-    
-    // Filter out any categories that aren't in our defined categories
-    const validCategories = categories.map(c => c.id)
-    const filteredSaved = Object.keys(initializedSaved).reduce((acc, key) => {
-      const categoryId = parseInt(key)
-      if (validCategories.includes(categoryId)) {
-        acc[categoryId] = initializedSaved[categoryId] || []
-      }
-      return acc
-    }, {})
-    
-    setSavedCategoryImages(filteredSaved)
-  }, [])
+const formatFileSize = (bytes) => {
+  if (!bytes || bytes === 0) return '0 bytes'
+  if (bytes < 1024) return bytes + ' bytes'
+  else if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB'
+  else return (bytes / 1048576).toFixed(1) + ' MB'
+}
 
-  const handleImageUpload = (e, categoryId) => {
-    const files = Array.from(e.target.files)
-    
-    const newImages = files.map(file => ({
-      id: Date.now() + Math.random(),
-      file,
-      preview: URL.createObjectURL(file),
-      name: file.name.replace(/\.[^/.]+$/, ""),
-      size: file.size,
-      type: file.type || 'image/jpeg',
-      uploadedAt: new Date().toISOString(),
-      categoryId: categoryId
-    }))
+const VideoCard = ({ idol, godId, isSaved = false, onView, onDelete, onEdit, newVideoPreview }) => {
+  const videoSource = isSaved ? (idol.video?.signedUrl || idol.video?.url) : newVideoPreview
+  const fileName = isSaved ? (idol.video?.filename || 'Untitled') : 'New Upload'
+  const fileSize = isSaved ? (idol.video?.size || 0) : 0
+  const date = isSaved ? idol.createdAt : new Date().toISOString()
 
-    setCategoryImages(prev => ({
-      ...prev,
-      [categoryId]: [...(prev[categoryId] || []), ...newImages]
-    }))
-  }
-
-  const removeImage = (categoryId, imageId) => {
-    const imageToRemove = categoryImages[categoryId]?.find(img => img.id === imageId)
-    if (imageToRemove?.preview) {
-      URL.revokeObjectURL(imageToRemove.preview)
-    }
-    
-    setCategoryImages(prev => ({
-      ...prev,
-      [categoryId]: (prev[categoryId] || []).filter(img => img.id !== imageId)
-    }))
-  }
-
-  const removeSavedImage = (categoryId, imageId) => {
-    const imageToRemove = savedCategoryImages[categoryId]?.find(img => img.id === imageId)
-    
-    const updated = {
-      ...savedCategoryImages,
-      [categoryId]: (savedCategoryImages[categoryId] || []).filter(img => img.id !== imageId)
-    }
-    setSavedCategoryImages(updated)
-    localStorage.setItem('godIdolImages', JSON.stringify(updated))
-  }
-
-  // Edit saved image
-  const startEditSavedImage = (image, categoryId) => {
-    setEditingImage({ ...image, categoryId })
-    setEditForm({ 
-      name: image.name,
-      category: categoryId.toString()
-    })
-    setNewImageFile(null) // Reset new image file
-  }
-
-  // Handle edit file change
-  const handleEditFileChange = (e) => {
-    const file = e.target.files[0]
-    if (file) {
-      const newImage = {
-        file: file,
-        preview: URL.createObjectURL(file),
-        name: file.name.replace(/\.[^/.]+$/, ""),
-        size: file.size,
-        type: file.type || 'image/jpeg'
-      }
-      setNewImageFile(newImage)
-      
-      // Update form name to match new file name if not manually changed
-      if (editForm.name === editingImage?.name) {
-        setEditForm(prev => ({ ...prev, name: newImage.name }))
-      }
-    }
-  }
-
-  const handleEditSavedImage = async () => {
-    if (!editingImage) return
-
-    const oldCategoryId = editingImage.categoryId
-    const newCategoryId = parseInt(editForm.category)
-    let updatedImageData
-
-    // If new image file is selected, convert it to data URL
-    if (newImageFile && newImageFile.file) {
-      const dataUrl = await new Promise((resolve) => {
-        const reader = new FileReader()
-        reader.onloadend = () => resolve(reader.result)
-        reader.readAsDataURL(newImageFile.file)
-      })
-
-      updatedImageData = {
-        id: editingImage.id,
-        name: editForm.name,
-        size: newImageFile.size,
-        type: newImageFile.type,
-        data: dataUrl, // Save as data URL
-        uploadedAt: new Date().toISOString(),
-        categoryId: newCategoryId
-      }
-
-      // Clean up the old preview URL if it exists
-      if (editingImage.preview && editingImage.preview.startsWith('blob:')) {
-        URL.revokeObjectURL(editingImage.preview)
-      }
-    } else {
-      // Keep the existing image data
-      updatedImageData = {
-        ...editingImage,
-        name: editForm.name,
-        categoryId: newCategoryId,
-        uploadedAt: new Date().toISOString()
-        // Keep the existing data property
-      }
-    }
-
-    // Remove image from old category
-    const updatedOldCategory = {
-      ...savedCategoryImages,
-      [oldCategoryId]: (savedCategoryImages[oldCategoryId] || []).filter(img => img.id !== editingImage.id)
-    }
-
-    // Add to new category
-    const updatedNewCategory = {
-      ...updatedOldCategory,
-      [newCategoryId]: [
-        ...(updatedOldCategory[newCategoryId] || []),
-        updatedImageData
-      ]
-    }
-
-    setSavedCategoryImages(updatedNewCategory)
-    localStorage.setItem('godIdolImages', JSON.stringify(updatedNewCategory))
-
-    // Clean up new image preview URL
-    if (newImageFile?.preview) {
-      URL.revokeObjectURL(newImageFile.preview)
-    }
-
-    setEditingImage(null)
-    setEditForm({ name: '', category: '' })
-    setNewImageFile(null)
-  }
-
-  const cancelEdit = () => {
-    if (newImageFile?.preview) {
-      URL.revokeObjectURL(newImageFile.preview)
-    }
-    setEditingImage(null)
-    setEditForm({ name: '', category: '' })
-    setNewImageFile(null)
-  }
-
-  const saveCategoryImages = (categoryId) => {
-    const imagesToSave = categoryImages[categoryId] || []
-    
-    if (imagesToSave.length === 0) {
-      alert(`No images to save for ${categories.find(c => c.id === categoryId)?.name}!`)
-      return
-    }
-
-    const savePromises = imagesToSave.map(img => {
-      return new Promise((resolve) => {
-        if (img.file) {
-          const reader = new FileReader()
-          reader.onloadend = () => {
-            resolve({
-              id: img.id,
-              name: img.name,
-              size: img.size,
-              type: img.type,
-              uploadedAt: img.uploadedAt,
-              data: reader.result, // Save as data URL
-              categoryId: categoryId
-            })
-          }
-          reader.readAsDataURL(img.file)
-        } else {
-          resolve(img)
-        }
-      })
-    })
-
-    Promise.all(savePromises).then((processedImages) => {
-      const existingImages = savedCategoryImages[categoryId] || []
-      const allImages = [...existingImages, ...processedImages]
-      
-      const updated = {
-        ...savedCategoryImages,
-        [categoryId]: allImages
-      }
-      
-      setSavedCategoryImages(updated)
-      localStorage.setItem('godIdolImages', JSON.stringify(updated))
-      
-      // Clear unsaved images for this category and clean up URLs
-      imagesToSave.forEach(img => {
-        if (img.preview) {
-          URL.revokeObjectURL(img.preview)
-        }
-      })
-      
-      setCategoryImages(prev => ({
-        ...prev,
-        [categoryId]: []
-      }))
-      
-      alert(`${processedImages.length} images saved successfully for ${categories.find(c => c.id === categoryId)?.name}!`)
-    })
-  }
-
-  const clearCategoryImages = (categoryId) => {
-    const categoryName = categories.find(c => c.id === categoryId)?.name
-    const imagesCount = categoryImages[categoryId]?.length || 0
-    
-    if (imagesCount === 0) {
-      alert(`No unsaved images to clear for ${categoryName}!`)
-      return
-    }
-    
-    if (window.confirm(`Clear all ${imagesCount} unsaved images for ${categoryName}?`)) {
-      // Clean up URLs
-      categoryImages[categoryId].forEach(img => {
-        if (img.preview) {
-          URL.revokeObjectURL(img.preview)
-        }
-      })
-      
-      setCategoryImages(prev => ({
-        ...prev,
-        [categoryId]: []
-      }))
-    }
-  }
-
-  const formatFileSize = (bytes) => {
-    if (!bytes || bytes === 0) return '0 bytes'
-    if (bytes < 1024) return bytes + ' bytes'
-    else if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB'
-    else return (bytes / 1048576).toFixed(1) + ' MB'
-  }
-
-  const formatDate = (dateString) => {
-    if (!dateString) return 'Unknown date'
-    try {
-      const date = new Date(dateString)
-      return date.toLocaleDateString('en-US', {
-        month: 'short',
-        day: 'numeric',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-      })
-    } catch (e) {
-      return 'Invalid date'
-    }
-  }
-
-  const ImageCard = ({ image, categoryId, isSaved = false, onView, onDelete, onEdit }) => (
-    <div className="relative border rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow bg-white group">
-      <div className="relative">
-        <img
-          src={image.data || image.preview} // Look for data first, then preview
-          alt={image.name}
-          className="w-full h-40 object-cover cursor-pointer"
-          onClick={() => onView(image)}
-          onError={(e) => {
-            // If image fails to load, show placeholder
-            e.target.onerror = null
-            e.target.src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100"><rect width="100" height="100" fill="%23f3f4f6"/><text x="50" y="50" font-family="Arial" font-size="10" fill="%239ca3af" text-anchor="middle" dy=".3em">Image</text></svg>'
-          }}
+  return (
+    <div className="relative border rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-all bg-white group">
+      <div className="relative aspect-video bg-black overflow-hidden flex items-center justify-center">
+        <video
+          key={videoSource}
+          src={videoSource}
+          className="w-full h-full object-cover"
+          muted
+          playsInline
+          preload="auto"
+          onMouseEnter={e => e.target.play()}
+          onMouseLeave={e => { e.target.pause(); e.target.currentTime = 0; }}
         />
-        <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-10 transition-all duration-300"></div>
-        
+        <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-20 group-hover:bg-opacity-40 transition-all cursor-pointer" onClick={() => onView({ name: fileName, url: videoSource, size: fileSize, date: date })}>
+           <FaPlay className="text-white text-3xl opacity-80 group-hover:opacity-100 group-hover:scale-110 transition-all pointer-events-none" />
+        </div>
+
         <div className="absolute top-2 right-2 flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
           <button
-            onClick={() => onView(image)}
-            className="p-2 bg-blue-500 text-white rounded-full hover:bg-blue-600 transition-colors"
+            onClick={() => onView({ name: fileName, url: videoSource, size: fileSize, date: date })}
+            className="p-2 bg-blue-500 text-white rounded-full hover:bg-blue-600 shadow-md"
             title="View"
           >
             <FaEye size={12} />
           </button>
           {isSaved && (
-            <button
-              onClick={() => onEdit(image, categoryId)}
-              className="p-2 bg-green-500 text-white rounded-full hover:bg-green-600 transition-colors"
-              title="Edit"
-            >
-              <FaEdit size={12} />
-            </button>
+            <>
+              <button
+                onClick={() => onEdit(idol)}
+                className="p-2 bg-green-500 text-white rounded-full hover:bg-green-600 shadow-md"
+                title="Edit"
+              >
+                <FaEdit size={12} />
+              </button>
+              <button
+                onClick={() => onDelete(idol._id)}
+                className="p-2 bg-red-500 text-white rounded-full hover:bg-red-600 shadow-md"
+                title="Delete"
+              >
+                <FaTrash size={12} />
+              </button>
+            </>
           )}
-          <button
-            onClick={() => onDelete(categoryId, image.id)}
-            className="p-2 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
-            title="Delete"
-          >
-            <FaTrash size={12} />
-          </button>
         </div>
       </div>
-      
-      <div className="p-3">
-        <p className="font-medium text-xs truncate" title={image.name}>
-          {image.name}
+      <div className="p-4">
+        <p className="font-bold text-sm truncate text-gray-800" title={fileName}>
+          {fileName}
         </p>
-        <div className="flex justify-between items-center mt-2">
-          <span className="text-xs text-gray-500">
-            {formatFileSize(image.size)}
+        <div className="flex justify-between items-center mt-3">
+          <span className="text-xs font-medium px-2 py-1 bg-gray-100 text-gray-600 rounded">
+            {formatFileSize(fileSize)}
           </span>
-          <span className="text-xs text-gray-500">
-            {formatDate(image.uploadedAt)}
-          </span>
+          {isSaved && (
+             <div className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${idol.isActive ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+               {idol.isActive ? 'Active' : 'Inactive'}
+             </div>
+          )}
         </div>
-        {image.categoryId && (
-          <div className="mt-1">
-            <span className="inline-block px-2 py-1 text-xs rounded-full bg-gray-100 text-gray-600">
-              {categories.find(c => c.id === image.categoryId)?.name || 'Unknown'}
-            </span>
-          </div>
-        )}
+        <p className="text-[10px] text-gray-400 mt-2 flex items-center gap-1">
+           Synced: {formatDate(date)}
+        </p>
       </div>
     </div>
   )
+}
 
-  const getCategoryStats = (categoryId) => {
-    return {
-      unsaved: (categoryImages[categoryId] || []).length,
-      saved: (savedCategoryImages[categoryId] || []).length
+const GodIdol = () => {
+  const [gods, setGods] = useState([])
+  const [idols, setIdols] = useState([])
+  const [selectedGodForUpload, setSelectedGodForUpload] = useState(null)
+  
+  const [newVideos, setNewVideos] = useState({}) // { godId: videoObj }
+  const [viewVideo, setViewVideo] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [actionLoading, setActionLoading] = useState(false)
+  const [error, setError] = useState('')
+  const [success, setSuccess] = useState('')
+
+  // ZIP Upload State
+  const [zipModes, setZipModes] = useState({}) // { godId: boolean }
+  const [uploadTitles, setUploadTitles] = useState({}) // { godId: string }
+  const [zipFiles, setZipFiles] = useState({}) // { godId: File }
+  const [uploadProgress, setUploadProgress] = useState(0)
+  const [isUploadingZip, setIsUploadingZip] = useState(false)
+  const [elapsedTime, setElapsedTime] = useState(0)
+  const zipFileInputRef = useRef(null)
+
+  // Edit states
+  const [editingIdol, setEditingIdol] = useState(null)
+  const [editFile, setEditFile] = useState(null)
+  const editFileInputRef = useRef(null)
+
+  useEffect(() => {
+    fetchInitialData()
+  }, [])
+
+  // Timer effect for ZIP upload
+  useEffect(() => {
+    let interval;
+    if (isUploadingZip) {
+      interval = setInterval(() => {
+        setElapsedTime((prev) => prev + 1);
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [isUploadingZip]);
+
+  const formatTime = (seconds) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const fetchInitialData = async () => {
+    setLoading(true)
+    setError('')
+    try {
+      const godsResult = await godAPI.getAllGods(1, 100) // Get all gods
+      const idolsResult = await godIdolAPI.getAllGodIdols()
+
+      if (godsResult.success) {
+        setGods(godsResult.data.gods || [])
+      }
+      if (idolsResult.success) {
+        setIdols(idolsResult.data || [])
+      }
+    } catch (err) {
+      setError('Failed to fetch data from server')
+    } finally {
+      setLoading(false)
     }
   }
 
-  const triggerEditFileInput = () => {
-    editFileInputRef.current?.click()
+  const handleVideoSelect = (e, godId) => {
+    const file = e.target.files[0]
+    if (!file) return
+
+    if (!file.type.startsWith('video/')) {
+      setError('Please select a video file')
+      return
+    }
+
+    if (file.size > 100 * 1024 * 1024) {
+      setError('Video size must be less than 100MB')
+      return
+    }
+
+    const videoObj = {
+      file,
+      preview: URL.createObjectURL(file),
+      name: file.name,
+      size: file.size,
+      uploadedAt: new Date().toISOString()
+    }
+
+    setNewVideos(prev => ({
+      ...prev,
+      [godId]: videoObj
+    }))
+  }
+
+  const handleZipFileChange = (e, godId) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (!file.name.toLowerCase().endsWith('.zip')) {
+      setError('Only .zip files are allowed');
+      return;
+    }
+    setZipFiles(prev => ({ ...prev, [godId]: file }));
+  };
+
+  const removeSelectedVideo = (godId) => {
+    const video = newVideos[godId]
+    if (video?.preview) {
+      URL.revokeObjectURL(video.preview)
+    }
+    setNewVideos(prev => {
+      const copy = { ...prev }
+      delete copy[godId]
+      return copy
+    })
+  }
+
+  const saveGodIdol = async (godId) => {
+    const video = newVideos[godId]
+    if (!video) return
+
+    setActionLoading(true)
+    setError('')
+    try {
+      const formData = new FormData()
+      formData.append('godId', godId)
+      formData.append('isActive', 'true')
+      formData.append('video', video.file)
+
+      const result = await godIdolAPI.createGodIdol(formData)
+      if (result.success) {
+        setSuccess('God idol video saved successfully!')
+        removeSelectedVideo(godId)
+        fetchInitialData() // Refresh
+      } else {
+        setError(result.message || 'Failed to save idol video')
+      }
+    } catch (err) {
+      setError('An error occurred during upload')
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  const handleUploadZip = async (godId) => {
+    const zipFile = zipFiles[godId];
+    const title = uploadTitles[godId];
+    
+    if (!zipFile || !title?.trim()) {
+        setError('Please select a ZIP file and enter a title');
+        return;
+    }
+
+    setIsUploadingZip(true);
+    setUploadProgress(0);
+    setElapsedTime(0);
+
+    try {
+        const response = await godAPI.uploadGodIdolZip(
+            godId,
+            title,
+            zipFile,
+            (progress) => setUploadProgress(progress)
+        );
+
+        if (response.success) {
+            setSuccess(`God Idol ZIP uploaded successfully in ${formatTime(elapsedTime)}!`);
+            setZipFiles(prev => { const c = { ...prev }; delete c[godId]; return c; });
+            setUploadTitles(prev => { const c = { ...prev }; delete c[godId]; return c; });
+            setUploadProgress(0);
+            setZipModes(prev => ({ ...prev, [godId]: false }));
+            fetchInitialData();
+        } else {
+            setError(response.message || 'Upload failed');
+        }
+    } catch (error) {
+        setError('An error occurred during upload');
+        console.error(error);
+    } finally {
+        setIsUploadingZip(false);
+    }
+  };
+
+  const deleteIdol = async (id) => {
+    if (!window.confirm('Are you sure you want to delete this idol video?')) return
+
+    setActionLoading(true)
+    try {
+      const result = await godIdolAPI.deleteGodIdol(id)
+      if (result.success) {
+        setSuccess('Idol video deleted successfully')
+        fetchInitialData()
+      } else {
+        setError(result.message || 'Failed to delete idol video')
+      }
+    } catch (err) {
+      setError('Failed to delete idol video')
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  const toggleStatus = async (id) => {
+    try {
+      const result = await godIdolAPI.toggleGodIdolStatus(id)
+      if (result.success) {
+        setIdols(prev => prev.map(idol => 
+          idol._id === id ? { ...idol, isActive: !idol.isActive } : idol
+        ))
+        setSuccess(`Idol ${result.data.isActive ? 'activated' : 'deactivated'} successfully`)
+      }
+    } catch (err) {
+      setError('Failed to toggle status')
+    }
+  }
+
+  const startEdit = (idol) => {
+    setEditingIdol(idol)
+    setEditFile(null)
+  }
+
+  const handleEditFileChange = (e) => {
+    const file = e.target.files[0]
+    if (file) {
+      if (!file.type.startsWith('video/')) {
+        setError('Please select a video file')
+        return
+      }
+      setEditFile({
+        file,
+        preview: URL.createObjectURL(file),
+        name: file.name,
+        size: file.size
+      })
+    }
+  }
+
+  const handleUpdateIdol = async () => {
+    if (!editingIdol) return
+
+    setActionLoading(true)
+    try {
+      let result;
+      if (editFile) {
+        const formData = new FormData()
+        formData.append('video', editFile.file)
+        result = await godIdolAPI.updateGodIdol(editingIdol._id, formData)
+      } else {
+        result = { success: true }
+      }
+
+      if (result.success) {
+        setSuccess('Idol updated successfully')
+        setIdols(prev => prev.map(idol => 
+          idol._id === editingIdol._id ? (result.data || idol) : idol
+        ))
+        setEditingIdol(null)
+        setEditFile(null)
+        setTimeout(() => {
+          fetchInitialData()
+        }, 500)
+      } else {
+        setError(result.message || 'Failed to update idol')
+      }
+    } catch (err) {
+      setError('Update failed')
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px] bg-white rounded-2xl shadow-sm">
+        <FaSpinner className="animate-spin text-4xl text-orange-500 mb-4" />
+        <p className="text-gray-500 font-medium tracking-wide">Initializing God Idol System...</p>
+      </div>
+    )
   }
 
   return (
-    <div className="bg-white rounded-lg shadow-lg p-4 md:p-6">
-      {/* Image Viewer Modal */}
-      {viewImage && (
-        <div className="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50 p-4">
-          <div className="relative max-w-5xl w-full">
-            <button
-              onClick={() => setViewImage(null)}
-              className="absolute top-4 right-4 p-3 bg-white bg-opacity-20 hover:bg-opacity-30 text-white rounded-full z-10 transition-all"
-            >
-              <FaTimes size={24} />
-            </button>
-            <div className="bg-white rounded-lg overflow-hidden">
-              <div className="p-4 bg-gray-800 text-white">
-                <h3 className="text-lg font-semibold truncate">{viewImage.name}</h3>
-                <div className="flex items-center gap-4 mt-1 text-sm">
-                  <span>{formatFileSize(viewImage.size)}</span>
-                  <span>•</span>
-                  <span>{formatDate(viewImage.uploadedAt)}</span>
-                  {viewImage.categoryId && (
-                    <>
-                      <span>•</span>
-                      <span>{categories.find(c => c.id === viewImage.categoryId)?.name}</span>
-                    </>
-                  )}
+    <div className="space-y-8 animate-in fade-in duration-500">
+      {/* Messages */}
+      {(error || success) && (
+        <div className="fixed top-24 right-8 z-[60] flex flex-col gap-3 max-w-sm w-full">
+           {error && (
+             <div className="bg-red-50 border border-red-200 p-4 rounded-xl shadow-xl flex items-center justify-between text-red-700 animate-in slide-in-from-right">
+                <div className="flex items-center gap-3">
+                   <FaTimesCircle className="text-xl" />
+                   <p className="text-sm font-semibold">{error}</p>
                 </div>
-              </div>
-              <div className="flex justify-center items-center bg-gray-900 min-h-[60vh]">
-                <img
-                  src={viewImage.data || viewImage.preview}
-                  alt={viewImage.name}
-                  className="max-w-full max-h-[70vh] object-contain"
-                  onError={(e) => {
-                    e.target.onerror = null
-                    e.target.src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300" viewBox="0 0 400 300"><rect width="400" height="300" fill="%231f2937"/><text x="200" y="150" font-family="Arial" font-size="20" fill="%236b7280" text-anchor="middle" dy=".3em">Image not available</text></svg>'
-                  }}
-                />
-              </div>
-            </div>
-          </div>
+                <button onClick={() => setError('')}><FaTimes /></button>
+             </div>
+           )}
+           {success && (
+             <div className="bg-green-50 border border-green-200 p-4 rounded-xl shadow-xl flex items-center justify-between text-green-700 animate-in slide-in-from-right">
+                <div className="flex items-center gap-3">
+                   <FaCheck className="text-xl" />
+                   <p className="text-sm font-semibold">{success}</p>
+                </div>
+                <button onClick={() => setSuccess('')}><FaTimes /></button>
+             </div>
+           )}
         </div>
       )}
 
-      {/* Edit Image Modal */}
-      {editingImage && (
-        <div className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
-            <div className="flex justify-between items-center mb-6">
-              <h3 className="text-xl font-semibold">Edit Image</h3>
-              <button
-                onClick={cancelEdit}
-                className="p-2 hover:bg-gray-100 rounded-full"
-              >
-                <FaTimes size={20} />
-              </button>
-            </div>
-
-            <div className="mb-6">
-              {/* Image Preview with Change Button */}
-              <div className="relative w-full h-48 mb-4 rounded-lg overflow-hidden border group">
-                <img
-                  src={newImageFile?.preview || editingImage.data || editingImage.preview}
-                  alt={editForm.name || editingImage.name}
-                  className="w-full h-full object-cover"
-                  onError={(e) => {
-                    e.target.onerror = null
-                    e.target.src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300" viewBox="0 0 400 300"><rect width="400" height="300" fill="%23f3f4f6"/><text x="200" y="150" font-family="Arial" font-size="16" fill="%239ca3af" text-anchor="middle" dy=".3em">Image preview</text></svg>'
-                  }}
-                />
-                <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-all duration-300"></div>
-                <button
-                  onClick={triggerEditFileInput}
-                  className="absolute bottom-3 right-3 flex items-center gap-2 px-4 py-2 bg-white bg-opacity-90 text-gray-800 rounded-lg hover:bg-white hover:bg-opacity-100 transition-all"
-                >
-                  <FaCamera className="w-4 h-4" />
-                  Change Image
-                </button>
-                <input
-                  ref={editFileInputRef}
-                  type="file"
-                  accept="image/*"
-                  onChange={handleEditFileChange}
-                  className="hidden"
-                />
-                
-                {/* File Info */}
-                <div className="absolute top-3 left-3 bg-black bg-opacity-70 text-white text-xs px-2 py-1 rounded">
-                  {formatFileSize(newImageFile?.size || editingImage.size)}
-                </div>
-              </div>
-              
-              {/* Edit Form */}
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Image Name
-                  </label>
-                  <input
-                    type="text"
-                    value={editForm.name}
-                    onChange={(e) => setEditForm(prev => ({ ...prev, name: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="Enter image name"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Category
-                  </label>
-                  <select
-                    value={editForm.category}
-                    onChange={(e) => setEditForm(prev => ({ ...prev, category: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    {categories.map(category => (
-                      <option key={category.id} value={category.id}>
-                        {category.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                
-                {/* File Info Display */}
-                {newImageFile && (
-                  <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
-                    <div className="flex justify-between items-center text-sm">
-                      <span className="font-medium text-blue-800">New Image:</span>
-                      <span className="text-blue-600">{newImageFile.name}</span>
-                    </div>
-                    <div className="mt-1 text-xs text-blue-600">
-                      Size: {formatFileSize(newImageFile.size)} • Type: {newImageFile.type}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div className="flex gap-3">
-              <button
-                onClick={handleEditSavedImage}
-                className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 font-semibold"
-              >
-                <FaCheck />
-                Save Changes
-              </button>
-              <button
-                onClick={cancelEdit}
-                className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 font-semibold"
-              >
-                <FaTimesCircle />
-                Cancel
-              </button>
-            </div>
-          </div>
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-6 rounded-2xl shadow-sm">
+        <div>
+          <h2 className="text-3xl font-black tracking-tighter" style={{ color: '#cc494c' }}>
+            God Idol Management
+          </h2>
+          <p className="text-gray-500 font-medium mt-1">Assign introductory spiritual videos to each god.</p>
         </div>
-      )}
-
-      <h2 className="text-2xl font-bold mb-6" style={{ color: '#cc494c' }}>
-        God Idol Management
-      </h2>
-      
-      {/* Category Selection */}
-      <div className="mb-8">
-        <h3 className="text-lg font-semibold mb-4" style={{ color: '#fea947' }}>
-          Select God
-        </h3>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {categories.map((category) => {
-            const stats = getCategoryStats(category.id)
-            return (
-              <button
-                key={category.id}
-                onClick={() => setSelectedCategory(category.id)}
-                className={`p-4 rounded-lg border-2 transition-all duration-300 flex flex-col items-center justify-center relative overflow-hidden group ${
-                  selectedCategory === category.id 
-                    ? 'scale-[1.02] shadow-lg' 
-                    : 'hover:scale-[1.01] hover:shadow-md'
-                }`}
-                style={{
-                  borderColor: selectedCategory === category.id ? category.color : '#e5e7eb',
-                  backgroundColor: selectedCategory === category.id ? `${category.color}10` : 'white'
-                }}
-              >
-                <div className="mb-2 w-16 h-16 rounded-full overflow-hidden border">
-                   <img src={category.image} alt={category.name} className="w-full h-full object-cover" />
-                </div>
-                <span className="font-semibold text-center text-sm">{category.name}</span>
-                
-                {/* Stats */}
-                <div className="flex gap-2 mt-2">
-                  <span className="text-xs px-2 py-1 rounded-full bg-blue-100 text-blue-800">
-                    {stats.saved} saved
-                  </span>
-                  {stats.unsaved > 0 && (
-                    <span className="text-xs px-2 py-1 rounded-full bg-yellow-100 text-yellow-800">
-                      {stats.unsaved} new
-                    </span>
-                  )}
-                </div>
-              </button>
-            )
-          })}
+        <div className="flex items-center gap-2 px-4 py-2 bg-orange-50 text-orange-700 rounded-full text-sm font-bold">
+            <FaFilm /> {idols.length} / {gods.length} Idols Assigned
         </div>
       </div>
 
-      {/* Selected Category Content */}
-      {selectedCategory && (
-        <div className="border-t pt-6">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
-            <div>
-              <h3 className="text-xl font-semibold flex items-center gap-2" 
-                  style={{ color: categories.find(c => c.id === selectedCategory)?.color }}>
-                 <div className="w-8 h-8 rounded-full overflow-hidden border">
-                    <img src={categories.find(c => c.id === selectedCategory)?.image} alt="" className="w-full h-full object-cover" />
-                 </div>
-                <span>{categories.find(c => c.id === selectedCategory)?.name}</span>
-              </h3>
-              <p className="text-gray-600 text-sm mt-1">
-                Upload and manage images for {categories.find(c => c.id === selectedCategory)?.name}
-              </p>
-            </div>
-            
-            <div className="flex items-center gap-3">
-              <div className="text-center">
-                <div className="text-2xl font-bold" style={{ color: '#fea947' }}>
-                  {(categoryImages[selectedCategory] || []).length}
-                </div>
-                <div className="text-xs text-gray-600">Unsaved</div>
-              </div>
-              
-              <label className="cursor-pointer">
-                <div className="flex items-center px-4 py-2 rounded-lg text-white font-semibold transition duration-300 hover:opacity-90 shadow-sm"
-                  style={{ backgroundColor: categories.find(c => c.id === selectedCategory)?.color }}>
-                  <FaUpload className="mr-2" />
-                  Upload Images
-                </div>
-                <input
-                  type="file"
-                  multiple
-                  accept="image/*"
-                  onChange={(e) => handleImageUpload(e, selectedCategory)}
-                  className="hidden"
-                />
-              </label>
-            </div>
-          </div>
+      {/* God Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+        {gods.map((god) => {
+          const associatedIdol = idols.find(i => i.godId?._id === god._id || i.godId === god._id)
+          const hasSelectedVideo = !!newVideos[god._id]
+          const isZip = zipModes[god._id]
 
-          {/* Uploaded Images Section */}
-          <div className="mb-8 p-4 border-2 border-dashed border-gray-300 rounded-lg bg-gray-50">
-            <div className="flex justify-between items-center mb-4">
-              <h4 className="font-semibold text-gray-700">Uploaded Images</h4>
-              <div className="flex items-center gap-2">
-                {((categoryImages[selectedCategory] || []).length) > 0 && (
-                  <>
-                    <button
-                      onClick={() => clearCategoryImages(selectedCategory)}
-                      className="px-3 py-1.5 border border-red-500 text-red-500 rounded-lg hover:bg-red-50 transition duration-300 text-sm"
-                    >
-                      Clear All
-                    </button>
-                    <button
-                      onClick={() => saveCategoryImages(selectedCategory)}
-                      className="flex items-center px-4 py-1.5 text-white rounded-lg font-semibold transition duration-300 hover:opacity-90 text-sm"
-                      style={{ backgroundColor: '#cc494c' }}
-                    >
-                      <FaSave className="mr-2" />
-                      Save All ({(categoryImages[selectedCategory] || []).length})
-                    </button>
-                  </>
+          return (
+            <div 
+              key={god._id}
+              className={`bg-white rounded-3xl overflow-hidden border-2 transition-all duration-300 ${associatedIdol ? 'border-gray-50' : 'border-orange-100 shadow-sm'}`}
+            >
+              {/* God Header */}
+              <div className="p-6 pb-0 flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                   <div className="w-14 h-14 rounded-2xl overflow-hidden border-2 border-orange-100 bg-orange-50 flex-shrink-0">
+                      <img src={god.image} alt={god.name} className="w-full h-full object-cover" />
+                   </div>
+                   <div>
+                      <h3 className="text-lg font-black text-gray-800 leading-none">{god.name}</h3>
+                      <span className="text-xs font-bold text-orange-500 uppercase tracking-widest">{god.category || 'Deity'}</span>
+                   </div>
+                </div>
+              </div>
+
+              <div className="p-6 pt-6">
+                {associatedIdol ? (
+                  <VideoCard 
+                    idol={associatedIdol} 
+                    godId={god._id}
+                    isSaved={true} 
+                    onView={setViewVideo}
+                    onDelete={deleteIdol}
+                    onEdit={startEdit}
+                  />
+                ) : (
+                  <div className="space-y-4">
+                    <div className="flex gap-2 mb-2">
+                       <button onClick={() => setZipModes(p => ({ ...p, [god._id]: false }))} className={`flex-1 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all ${!isZip ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-400'}`}>Single Video</button>
+                       <button onClick={() => setZipModes(p => ({ ...p, [god._id]: true }))} className={`flex-1 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all ${isZip ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-400'}`}>Batch ZIP</button>
+                    </div>
+
+                    {isZip ? (
+                       <div className="space-y-3">
+                          <input 
+                            type="text" 
+                            placeholder="ZIP Collection Title"
+                            value={uploadTitles[god._id] || ''}
+                            onChange={(e) => setUploadTitles(p => ({ ...p, [god._id]: e.target.value }))}
+                            className="w-full px-3 py-2 bg-gray-50 border-none rounded-xl text-xs font-bold outline-none ring-2 ring-transparent focus:ring-orange-100"
+                          />
+                          <div 
+                            className={`aspect-video rounded-2xl border-2 border-dashed flex flex-col items-center justify-center text-center p-4 cursor-pointer transition-all ${zipFiles[god._id] ? 'border-green-200 bg-green-50' : 'border-gray-200 bg-gray-50'}`}
+                            onClick={() => !isUploadingZip && zipFileInputRef.current?.click()}
+                          >
+                             <input type="file" ref={zipFileInputRef} accept=".zip" className="hidden" onChange={(e) => handleZipFileChange(e, god._id)} />
+                             {zipFiles[god._id] ? (
+                                <>
+                                   <FaFileArchive className="text-2xl text-green-500 mb-1" />
+                                   <p className="text-[10px] font-bold text-green-700 truncate w-full px-2">{zipFiles[god._id].name}</p>
+                                </>
+                             ) : (
+                                <>
+                                   <FaUpload className="text-xl text-gray-300 mb-1" />
+                                   <p className="text-[10px] font-bold text-gray-400">Select ZIP</p>
+                                </>
+                             )}
+                          </div>
+                          
+                          {isUploadingZip && (
+                             <div className="h-1 w-full bg-gray-100 rounded-full overflow-hidden">
+                                <div className="h-full bg-orange-500 transition-all" style={{ width: `${uploadProgress}%` }}></div>
+                             </div>
+                          )}
+
+                          <button
+                             onClick={() => handleUploadZip(god._id)}
+                             disabled={isUploadingZip || !zipFiles[god._id]}
+                             className="w-full py-3 bg-orange-600 text-white rounded-xl text-xs font-bold hover:bg-orange-700 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                          >
+                             {isUploadingZip ? <FaSpinner className="animate-spin" /> : <><FaSave /> Upload ZIP</>}
+                          </button>
+                       </div>
+                    ) : (
+                      hasSelectedVideo ? (
+                        <div className="space-y-3">
+                          <VideoCard 
+                            godId={god._id}
+                            isSaved={false} 
+                            onView={setViewVideo}
+                            newVideoPreview={newVideos[god._id]?.preview}
+                          />
+                          <div className="flex gap-2">
+                             <button
+                               onClick={() => saveGodIdol(god._id)}
+                               disabled={actionLoading}
+                               className="flex-1 py-3 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 transition-all flex items-center justify-center gap-2"
+                             >
+                               {actionLoading ? <FaSpinner className="animate-spin" /> : <><FaSave /> Save</>}
+                             </button>
+                             <button onClick={() => removeSelectedVideo(god._id)} className="p-3 bg-gray-100 text-gray-400 rounded-xl hover:bg-gray-200"><FaTimes /></button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="aspect-video bg-gray-50 rounded-2xl border-2 border-dashed border-gray-200 flex flex-col items-center justify-center text-center p-6 group/upload">
+                          <div className="w-12 h-12 bg-white rounded-xl shadow-sm flex items-center justify-center text-gray-400 group-hover/upload:text-orange-500 group-hover/upload:scale-110 transition-all duration-300 mb-3">
+                             <FaUpload />
+                          </div>
+                          <p className="text-sm font-bold text-gray-800">No Idol Assigned</p>
+                          <label className="cursor-pointer mt-4">
+                            <div className="px-5 py-2 bg-white border border-gray-200 rounded-full text-xs font-bold text-gray-600 hover:bg-gray-800 hover:text-white transition-all shadow-sm">
+                              Select Video
+                            </div>
+                            <input
+                              type="file"
+                              accept="video/*"
+                              onChange={(e) => handleVideoSelect(e, god._id)}
+                              className="hidden"
+                            />
+                          </label>
+                        </div>
+                      )
+                    )}
+                  </div>
                 )}
               </div>
             </div>
+          )
+        })}
+      </div>
 
-            {(categoryImages[selectedCategory] || []).length > 0 ? (
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                {(categoryImages[selectedCategory] || []).map((image) => (
-                  <ImageCard
-                    key={image.id}
-                    image={image}
-                    categoryId={selectedCategory}
-                    onView={setViewImage}
-                    onDelete={removeImage}
-                  />
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-8 border-2 border-dashed border-gray-300 rounded-lg">
-                <FaImage className="text-4xl text-gray-300 mx-auto mb-3" />
-                <p className="text-gray-500">No images uploaded yet</p>
-                <p className="text-sm text-gray-400 mt-1">Click "Upload Images" to add god images</p>
-              </div>
-            )}
+      {/* Modals */}
+      {viewVideo && (
+        <div className="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-[100] p-4" onClick={() => setViewVideo(null)}>
+          <div className="relative max-w-5xl w-full bg-white rounded-3xl overflow-hidden shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="p-4 bg-gray-900 text-white flex justify-between items-center">
+               <div className="flex items-center gap-3">
+                  <div className="w-2 h-2 rounded-full bg-orange-500 animate-pulse"></div>
+                  <h3 className="text-sm font-bold">{viewVideo.name}</h3>
+               </div>
+               <button onClick={() => setViewVideo(null)} className="p-2 hover:bg-gray-800 rounded-full transition-colors"><FaTimes /></button>
+            </div>
+            <div className="aspect-video bg-black flex items-center justify-center">
+              <video key={viewVideo.url} src={viewVideo.url} controls autoPlay playsInline className="w-full h-full" />
+            </div>
+            <div className="p-4 bg-gray-50 border-t flex justify-between items-center">
+               <span className="text-xs font-bold text-gray-400">{formatFileSize(viewVideo.size)}</span>
+            </div>
           </div>
+        </div>
+      )}
 
-          {/* Saved Images Section */}
-          <div className="mt-8">
-            <div className="flex justify-between items-center mb-4">
-              <h4 className="font-semibold text-gray-700">Saved Images</h4>
-              {((savedCategoryImages[selectedCategory] || []).length) > 0 && (
-                <span className="text-sm text-gray-600">
-                  {(savedCategoryImages[selectedCategory] || []).length} images
-                </span>
-              )}
+      {editingIdol && (
+        <div className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-[100] p-4">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full p-8 space-y-6">
+            <div className="flex justify-between items-center">
+               <h3 className="text-2xl font-black text-gray-800">Update Idol Video</h3>
+               <button onClick={() => setEditingIdol(null)} className="text-gray-400 hover:text-gray-600"><FaTimes /></button>
             </div>
 
-            {(savedCategoryImages[selectedCategory] || []).length > 0 ? (
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                {(savedCategoryImages[selectedCategory] || []).map((image) => (
-                  <ImageCard
-                    key={image.id}
-                    image={image}
-                    categoryId={selectedCategory}
-                    isSaved={true}
-                    onView={setViewImage}
-                    onDelete={removeSavedImage}
-                    onEdit={startEditSavedImage}
-                  />
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-8 border-2 border-dashed border-gray-300 rounded-lg">
-                <p className="text-gray-500">No saved images for this god</p>
-                <p className="text-sm text-gray-400 mt-1">Upload and save images to see them here</p>
-              </div>
-            )}
-          </div>
+            <div className="aspect-video rounded-2xl bg-black overflow-hidden relative group">
+               {(() => {
+                 const videoSource = editFile?.preview || editingIdol.video?.signedUrl || editingIdol.video?.url
+                 return <video key={videoSource} src={videoSource} playsInline className="w-full h-full object-cover" />
+               })()}
+               <div className="absolute inset-0 bg-black bg-opacity-40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all">
+                  <label className="cursor-pointer px-6 py-2 bg-white text-gray-900 rounded-full font-bold shadow-xl hover:scale-105 transition-all">
+                    Change Media
+                    <input type="file" accept="video/*" onChange={handleEditFileChange} className="hidden" />
+                  </label>
+               </div>
+            </div>
 
-          {/* Category Stats */}
-          <div className="mt-6 p-4 rounded-lg" 
-               style={{ 
-                 backgroundColor: `${categories.find(c => c.id === selectedCategory)?.color}10`,
-                 borderLeft: `4px solid ${categories.find(c => c.id === selectedCategory)?.color}`
-               }}>
-            <div className="flex items-center justify-between">
-              <div>
-                <h5 className="font-semibold text-sm">God Statistics</h5>
-                <div className="flex gap-6 mt-2">
-                  <div className="text-center">
-                    <div className="text-2xl font-bold" style={{ color: '#cc494c' }}>
-                      {(categoryImages[selectedCategory] || []).length}
-                    </div>
-                    <div className="text-xs text-gray-600">Unsaved Images</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-2xl font-bold" style={{ color: '#fea947' }}>
-                      {(savedCategoryImages[selectedCategory] || []).length}
-                    </div>
-                    <div className="text-xs text-gray-600">Saved Images</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-2xl font-bold" style={{ color: '#4CAF50' }}>
-                      {(categoryImages[selectedCategory] || []).length + (savedCategoryImages[selectedCategory] || []).length}
-                    </div>
-                    <div className="text-xs text-gray-600">Total Images</div>
-                  </div>
-                </div>
-              </div>
+            <div className="flex gap-4">
+               <button
+                 onClick={handleUpdateIdol}
+                 disabled={actionLoading || !editFile}
+                 className="flex-1 py-4 bg-gray-900 text-white rounded-2xl font-bold shadow-xl hover:bg-black transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+               >
+                 {actionLoading ? <FaSpinner className="animate-spin" /> : <><FaCheck />Confirm Update</>}
+               </button>
+               <button
+                 onClick={() => setEditingIdol(null)}
+                 className="px-6 py-4 bg-gray-100 text-gray-600 rounded-2xl font-bold hover:bg-gray-200 transition-all"
+               >
+                 Cancel
+               </button>
             </div>
           </div>
         </div>

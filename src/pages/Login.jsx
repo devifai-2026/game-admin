@@ -108,8 +108,8 @@ const Login = ({ onLogin, onNavigateToForgotPassword }) => {
 
   const handleDemoLogin = () => {
     setCredentials({
-      email: 'admin@example.com',
-      password: 'admin123'
+      email: 'bikrambiswas912@gmail.com',
+      password: 'Ved@1234'
     });
     // Focus on password field
     const passwordInput = document.querySelector('input[type="password"]');
@@ -275,8 +275,25 @@ const Login = ({ onLogin, onNavigateToForgotPassword }) => {
               <span className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></span>
             </button>
 
-         
-          </div>
+            {/* Demo Credentials */}
+            <div className="mt-8 p-5 bg-gradient-to-br from-gray-50 to-white border border-gray-100 rounded-2xl shadow-sm">
+              <div className="flex items-center justify-center space-x-2 mb-3">
+                <div className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse"></div>
+                <p className="text-[10px] text-gray-400 uppercase tracking-[0.2em] font-bold">Access Credentials</p>
+                <div className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse"></div>
+              </div>
+              <div className="space-y-2 text-center">
+                <div className="py-1.5 px-3 bg-white rounded-lg border border-gray-50 transition-all hover:border-red-100 hover:shadow-sm group">
+                  <p className="text-xs text-gray-500 mb-0.5">Email</p>
+                  <p className="text-sm font-semibold text-gray-800 group-hover:text-red-600 transition-colors">bikrambiswas912@gmail.com</p>
+                </div>
+                <div className="py-1.5 px-3 bg-white rounded-lg border border-gray-50 transition-all hover:border-red-100 hover:shadow-sm group">
+                  <p className="text-xs text-gray-500 mb-0.5">Password</p>
+                  <p className="text-sm font-semibold text-gray-800 group-hover:text-red-600 transition-colors">Ved@1234</p>
+                </div>
+              </div>
+            </div>
+            </div>
         </form>
       </div>
 

@@ -61,11 +61,15 @@ const Header = ({ onLogout, onSidebarToggle }) => {
         <div className="hidden md:flex items-center space-x-2">
         
           <div className="text-right">
-            <p className="text-sm font-semibold">{user.name || user.username || 'Admin User'}</p>
-            <p className="text-xs text-gray-500">{user.email}</p>
+            {/* <p className="text-sm font-semibold">{user.name || user.username || 'Admin User'}</p>
+            <p className="text-xs text-gray-500">{user.email}</p> */}
           </div>
-            <div className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-sm"
-               style={{ backgroundColor: '#fea947' }}>
+            <div 
+              className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-sm cursor-pointer hover:opacity-80 transition-opacity"
+              style={{ backgroundColor: '#fea947' }}
+              onClick={() => navigate('/dashboard/settings')}
+              title="Go to Settings"
+            >
             {user.name ? user.name.charAt(0).toUpperCase() : 
              user.username ? user.username.charAt(0).toUpperCase() : 'A'}
           </div>
