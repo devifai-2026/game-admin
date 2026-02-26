@@ -6,26 +6,9 @@ const UserManagement = () => {
   const [currentPage, setCurrentPage] = useState(1)
   const [usersPerPage] = useState(10) // Show 10 users per page
 
-  // Mock data with 10 users
   useEffect(() => {
-    const mockUsers = [
-      { id: 1, name: 'John Doe', email: 'john@example.com', joinDate: '2024-01-15' },
-      { id: 2, name: 'Jane Smith', email: 'jane@example.com', joinDate: '2024-01-10' },
-      { id: 3, name: 'Bob Johnson', email: 'bob@example.com', joinDate: '2024-01-05' },
-      { id: 4, name: 'Alice Brown', email: 'alice@example.com', joinDate: '2024-01-01' },
-      { id: 5, name: 'Charlie Wilson', email: 'charlie@example.com', joinDate: '2023-12-28' },
-      { id: 6, name: 'David Lee', email: 'david@example.com', joinDate: '2023-12-25' },
-      { id: 7, name: 'Emma Davis', email: 'emma@example.com', joinDate: '2023-12-20' },
-      { id: 8, name: 'Frank Miller', email: 'frank@example.com', joinDate: '2023-12-15' },
-      { id: 9, name: 'Grace Taylor', email: 'grace@example.com', joinDate: '2023-12-10' },
-      { id: 10, name: 'Henry Clark', email: 'henry@example.com', joinDate: '2023-12-05' },
-      { id: 11, name: 'Ivy Martinez', email: 'ivy@example.com', joinDate: '2023-11-30' },
-      { id: 12, name: 'Jack Anderson', email: 'jack@example.com', joinDate: '2023-11-25' },
-      { id: 13, name: 'Kathy White', email: 'kathy@example.com', joinDate: '2023-11-20' },
-      { id: 14, name: 'Leo Harris', email: 'leo@example.com', joinDate: '2023-11-15' },
-      { id: 15, name: 'Mona Lewis', email: 'mona@example.com', joinDate: '2023-11-10' },
-    ]
-    setUsers(mockUsers)
+    // Fetched users will go here
+    setUsers([])
   }, [])
 
   // Filter users based on search term
@@ -117,14 +100,22 @@ const UserManagement = () => {
             </tr>
           </thead>
           <tbody>
-            {currentUsers.map((user) => (
-              <tr key={user.id} className="border-b hover:bg-gray-50">
-                <td className="py-3 px-4">{user.id}</td>
-                <td className="py-3 px-4 font-semibold">{user.name}</td>
-                <td className="py-3 px-4">{user.email}</td>
-                <td className="py-3 px-4">{user.joinDate}</td>
+            {currentUsers.length > 0 ? (
+              currentUsers.map((user) => (
+                <tr key={user.id} className="border-b hover:bg-gray-50">
+                  <td className="py-3 px-4">{user.id}</td>
+                  <td className="py-3 px-4 font-semibold">{user.name}</td>
+                  <td className="py-3 px-4">{user.email}</td>
+                  <td className="py-3 px-4">{user.joinDate}</td>
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <td colSpan="4" className="py-10 text-center text-gray-500 font-medium">
+                  no user available
+                </td>
               </tr>
-            ))}
+            )}
           </tbody>
         </table>
       </div>

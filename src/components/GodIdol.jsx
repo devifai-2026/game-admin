@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { 
   FaUpload, FaTrash, FaSave, FaEye, FaTimes, FaFilm, FaEdit, FaCheck, 
-  FaTimesCircle, FaCamera, FaSpinner, FaPlay, FaFileArchive 
+  FaTimesCircle, FaCamera, FaSpinner, FaPlay 
 } from 'react-icons/fa'
 import godAPI from '../apis/god.api'
 import godIdolAPI from '../apis/godIdol.api'
@@ -108,14 +108,7 @@ const GodIdol = () => {
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
 
-  // ZIP Upload State
-  const [zipModes, setZipModes] = useState({}) // { godId: boolean }
-  const [uploadTitles, setUploadTitles] = useState({}) // { godId: string }
-  const [zipFiles, setZipFiles] = useState({}) // { godId: File }
-  const [uploadProgress, setUploadProgress] = useState(0)
-  const [isUploadingZip, setIsUploadingZip] = useState(false)
-  const [elapsedTime, setElapsedTime] = useState(0)
-  const zipFileInputRef = useRef(null)
+
 
   // Edit states
   const [editingIdol, setEditingIdol] = useState(null)
@@ -126,22 +119,9 @@ const GodIdol = () => {
     fetchInitialData()
   }, [])
 
-  // Timer effect for ZIP upload
-  useEffect(() => {
-    let interval;
-    if (isUploadingZip) {
-      interval = setInterval(() => {
-        setElapsedTime((prev) => prev + 1);
-      }, 1000);
-    }
-    return () => clearInterval(interval);
-  }, [isUploadingZip]);
 
-  const formatTime = (seconds) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
+
+
 
   const fetchInitialData = async () => {
     setLoading(true)
@@ -191,15 +171,7 @@ const GodIdol = () => {
     }))
   }
 
-  const handleZipFileChange = (e, godId) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    if (!file.name.toLowerCase().endsWith('.zip')) {
-      setError('Only .zip files are allowed');
-      return;
-    }
-    setZipFiles(prev => ({ ...prev, [godId]: file }));
-  };
+
 
   const removeSelectedVideo = (godId) => {
     const video = newVideos[godId]
@@ -240,44 +212,7 @@ const GodIdol = () => {
     }
   }
 
-  const handleUploadZip = async (godId) => {
-    const zipFile = zipFiles[godId];
-    const title = uploadTitles[godId];
-    
-    if (!zipFile || !title?.trim()) {
-        setError('Please select a ZIP file and enter a title');
-        return;
-    }
 
-    setIsUploadingZip(true);
-    setUploadProgress(0);
-    setElapsedTime(0);
-
-    try {
-        const response = await godAPI.uploadGodIdolZip(
-            godId,
-            title,
-            zipFile,
-            (progress) => setUploadProgress(progress)
-        );
-
-        if (response.success) {
-            setSuccess(`God Idol ZIP uploaded successfully in ${formatTime(elapsedTime)}!`);
-            setZipFiles(prev => { const c = { ...prev }; delete c[godId]; return c; });
-            setUploadTitles(prev => { const c = { ...prev }; delete c[godId]; return c; });
-            setUploadProgress(0);
-            setZipModes(prev => ({ ...prev, [godId]: false }));
-            fetchInitialData();
-        } else {
-            setError(response.message || 'Upload failed');
-        }
-    } catch (error) {
-        setError('An error occurred during upload');
-        console.error(error);
-    } finally {
-        setIsUploadingZip(false);
-    }
-  };
 
   const deleteIdol = async (id) => {
     if (!window.confirm('Are you sure you want to delete this idol video?')) return
@@ -419,7 +354,7 @@ const GodIdol = () => {
         {gods.map((god) => {
           const associatedIdol = idols.find(i => i.godId?._id === god._id || i.godId === god._id)
           const hasSelectedVideo = !!newVideos[god._id]
-          const isZip = zipModes[god._id]
+
 
           return (
             <div 
@@ -451,91 +386,43 @@ const GodIdol = () => {
                   />
                 ) : (
                   <div className="space-y-4">
-                    <div className="flex gap-2 mb-2">
-                       <button onClick={() => setZipModes(p => ({ ...p, [god._id]: false }))} className={`flex-1 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all ${!isZip ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-400'}`}>Single Video</button>
-                       <button onClick={() => setZipModes(p => ({ ...p, [god._id]: true }))} className={`flex-1 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all ${isZip ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-400'}`}>Batch ZIP</button>
-                    </div>
-
-                    {isZip ? (
-                       <div className="space-y-3">
-                          <input 
-                            type="text" 
-                            placeholder="ZIP Collection Title"
-                            value={uploadTitles[god._id] || ''}
-                            onChange={(e) => setUploadTitles(p => ({ ...p, [god._id]: e.target.value }))}
-                            className="w-full px-3 py-2 bg-gray-50 border-none rounded-xl text-xs font-bold outline-none ring-2 ring-transparent focus:ring-orange-100"
-                          />
-                          <div 
-                            className={`aspect-video rounded-2xl border-2 border-dashed flex flex-col items-center justify-center text-center p-4 cursor-pointer transition-all ${zipFiles[god._id] ? 'border-green-200 bg-green-50' : 'border-gray-200 bg-gray-50'}`}
-                            onClick={() => !isUploadingZip && zipFileInputRef.current?.click()}
-                          >
-                             <input type="file" ref={zipFileInputRef} accept=".zip" className="hidden" onChange={(e) => handleZipFileChange(e, god._id)} />
-                             {zipFiles[god._id] ? (
-                                <>
-                                   <FaFileArchive className="text-2xl text-green-500 mb-1" />
-                                   <p className="text-[10px] font-bold text-green-700 truncate w-full px-2">{zipFiles[god._id].name}</p>
-                                </>
-                             ) : (
-                                <>
-                                   <FaUpload className="text-xl text-gray-300 mb-1" />
-                                   <p className="text-[10px] font-bold text-gray-400">Select ZIP</p>
-                                </>
-                             )}
-                          </div>
-                          
-                          {isUploadingZip && (
-                             <div className="h-1 w-full bg-gray-100 rounded-full overflow-hidden">
-                                <div className="h-full bg-orange-500 transition-all" style={{ width: `${uploadProgress}%` }}></div>
-                             </div>
-                          )}
-
-                          <button
-                             onClick={() => handleUploadZip(god._id)}
-                             disabled={isUploadingZip || !zipFiles[god._id]}
-                             className="w-full py-3 bg-orange-600 text-white rounded-xl text-xs font-bold hover:bg-orange-700 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
-                          >
-                             {isUploadingZip ? <FaSpinner className="animate-spin" /> : <><FaSave /> Upload ZIP</>}
-                          </button>
-                       </div>
+                    {hasSelectedVideo ? (
+                      <div className="space-y-3">
+                        <VideoCard 
+                          godId={god._id}
+                          isSaved={false} 
+                          onView={setViewVideo}
+                          newVideoPreview={newVideos[god._id]?.preview}
+                        />
+                        <div className="flex gap-2">
+                           <button
+                             onClick={() => saveGodIdol(god._id)}
+                             disabled={actionLoading}
+                             className="flex-1 py-3 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 transition-all flex items-center justify-center gap-2"
+                           >
+                             {actionLoading ? <FaSpinner className="animate-spin" /> : <><FaSave /> Save</>}
+                           </button>
+                           <button onClick={() => removeSelectedVideo(god._id)} className="p-3 bg-gray-100 text-gray-400 rounded-xl hover:bg-gray-200"><FaTimes /></button>
+                        </div>
+                      </div>
                     ) : (
-                      hasSelectedVideo ? (
-                        <div className="space-y-3">
-                          <VideoCard 
-                            godId={god._id}
-                            isSaved={false} 
-                            onView={setViewVideo}
-                            newVideoPreview={newVideos[god._id]?.preview}
+                      <div className="aspect-video bg-gray-50 rounded-2xl border-2 border-dashed border-gray-200 flex flex-col items-center justify-center text-center p-6 group/upload">
+                        <div className="w-12 h-12 bg-white rounded-xl shadow-sm flex items-center justify-center text-gray-400 group-hover/upload:text-orange-500 group-hover/upload:scale-110 transition-all duration-300 mb-3">
+                           <FaUpload />
+                        </div>
+                        <p className="text-sm font-bold text-gray-800">No Idol Assigned</p>
+                        <label className="cursor-pointer mt-4">
+                          <div className="px-5 py-2 bg-white border border-gray-200 rounded-full text-xs font-bold text-gray-600 hover:bg-gray-800 hover:text-white transition-all shadow-sm">
+                            Select Video
+                          </div>
+                          <input
+                            type="file"
+                            accept="video/*"
+                            onChange={(e) => handleVideoSelect(e, god._id)}
+                            className="hidden"
                           />
-                          <div className="flex gap-2">
-                             <button
-                               onClick={() => saveGodIdol(god._id)}
-                               disabled={actionLoading}
-                               className="flex-1 py-3 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 transition-all flex items-center justify-center gap-2"
-                             >
-                               {actionLoading ? <FaSpinner className="animate-spin" /> : <><FaSave /> Save</>}
-                             </button>
-                             <button onClick={() => removeSelectedVideo(god._id)} className="p-3 bg-gray-100 text-gray-400 rounded-xl hover:bg-gray-200"><FaTimes /></button>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="aspect-video bg-gray-50 rounded-2xl border-2 border-dashed border-gray-200 flex flex-col items-center justify-center text-center p-6 group/upload">
-                          <div className="w-12 h-12 bg-white rounded-xl shadow-sm flex items-center justify-center text-gray-400 group-hover/upload:text-orange-500 group-hover/upload:scale-110 transition-all duration-300 mb-3">
-                             <FaUpload />
-                          </div>
-                          <p className="text-sm font-bold text-gray-800">No Idol Assigned</p>
-                          <label className="cursor-pointer mt-4">
-                            <div className="px-5 py-2 bg-white border border-gray-200 rounded-full text-xs font-bold text-gray-600 hover:bg-gray-800 hover:text-white transition-all shadow-sm">
-                              Select Video
-                            </div>
-                            <input
-                              type="file"
-                              accept="video/*"
-                              onChange={(e) => handleVideoSelect(e, god._id)}
-                              className="hidden"
-                            />
-                          </label>
-                        </div>
-                      )
+                        </label>
+                      </div>
                     )}
                   </div>
                 )}

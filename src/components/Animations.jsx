@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { 
   FaUpload, FaTrash, FaSave, FaEye, FaTimes, FaFilm, FaEdit, FaCheck, 
-  FaTimesCircle, FaSpinner, FaPlay, FaMagic, FaChevronRight, FaFileArchive 
+  FaTimesCircle, FaSpinner, FaPlay, FaMagic, FaChevronRight 
 } from 'react-icons/fa'
 import godIdolAPI from '../apis/godIdol.api'
 import animationAPI from '../apis/animation.api'
@@ -39,14 +39,7 @@ const Animations = () => {
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
 
-  // ZIP Upload State
-  const [isZipMode, setIsZipMode] = useState(false)
-  const [uploadTitle, setUploadTitle] = useState('')
-  const [zipFile, setZipFile] = useState(null)
-  const [uploadProgress, setUploadProgress] = useState(0)
-  const [isUploadingZip, setIsUploadingZip] = useState(false)
-  const [elapsedTime, setElapsedTime] = useState(0)
-  const zipFileInputRef = useRef(null)
+
 
   // Edit states
   const [editingAnim, setEditingAnim] = useState(null)
@@ -57,22 +50,7 @@ const Animations = () => {
     fetchInitialData()
   }, [])
 
-  // Timer effect for ZIP upload
-  useEffect(() => {
-    let interval;
-    if (isUploadingZip) {
-      interval = setInterval(() => {
-        setElapsedTime((prev) => prev + 1);
-      }, 1000);
-    }
-    return () => clearInterval(interval);
-  }, [isUploadingZip]);
 
-  const formatTime = (seconds) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
 
   const fetchInitialData = async () => {
     setLoading(true)
@@ -111,19 +89,7 @@ const Animations = () => {
     })
   }
 
-  const handleZipFileChange = (e) => {
-    const file = e.target.files[0];
-    validateAndSetZip(file);
-  };
 
-  const validateAndSetZip = (file) => {
-    if (!file) return;
-    if (!file.name.toLowerCase().endsWith('.zip')) {
-      setError('Only .zip files are allowed');
-      return;
-    }
-    setZipFile(file);
-  };
 
   const removeSelectedVideo = () => {
     if (newVideo?.preview) URL.revokeObjectURL(newVideo.preview)
@@ -158,42 +124,7 @@ const Animations = () => {
     }
   }
 
-  const handleUploadZip = async () => {
-    if (!selectedCategory || !zipFile) return;
-    if (!uploadTitle.trim()) {
-        setError('Please enter a title');
-        return;
-    }
 
-    setIsUploadingZip(true);
-    setUploadProgress(0);
-    setElapsedTime(0);
-
-    try {
-        const response = await animationAPI.uploadAnimationZip(
-            selectedCategory,
-            uploadTitle,
-            zipFile,
-            (progress) => setUploadProgress(progress)
-        );
-
-        if (response.success) {
-            setSuccess(`Animation Zip uploaded successfully in ${formatTime(elapsedTime)}!`);
-            setZipFile(null);
-            setUploadTitle('');
-            setUploadProgress(0);
-            setIsZipMode(false);
-            fetchInitialData();
-        } else {
-            setError(response.message || 'Upload failed');
-        }
-    } catch (error) {
-        setError('An error occurred during upload');
-        console.error(error);
-    } finally {
-        setIsUploadingZip(false);
-    }
-  };
 
   const deleteAnimation = async (id) => {
     if (!window.confirm('Are you sure you want to delete this animation?')) return
@@ -301,7 +232,7 @@ const Animations = () => {
             {idols.map(idol => (
               <button
                 key={idol._id}
-                onClick={() => { setSelectedIdolId(idol._id); setSelectedCategory(null); setIsZipMode(false); }}
+                onClick={() => { setSelectedIdolId(idol._id); setSelectedCategory(null); }}
                 className={`w-full p-4 rounded-2xl flex items-center gap-4 transition-all ${selectedIdolId === idol._id ? 'bg-blue-600 text-white shadow-lg' : 'hover:bg-gray-50 text-gray-700'}`}
               >
                 <div className="w-10 h-10 rounded-xl overflow-hidden border-2 border-white/20 bg-gray-100 flex-shrink-0">
@@ -336,7 +267,7 @@ const Animations = () => {
                   return (
                     <button
                       key={cat.id}
-                      onClick={() => { setSelectedCategory(cat.id); setIsZipMode(false); }}
+                      onClick={() => { setSelectedCategory(cat.id); }}
                       className={`p-6 rounded-3xl border-2 transition-all flex flex-col items-center text-center group ${selectedCategory === cat.id ? 'border-orange-400 bg-orange-50 shadow-md scale-[1.02]' : 'bg-white border-transparent shadow-sm hover:border-gray-200'}`}
                     >
                       <span className="text-3xl mb-3 group-hover:scale-110 transition-transform">{cat.icon}</span>
@@ -396,79 +327,9 @@ const Animations = () => {
                           <div className="flex flex-col items-center justify-center py-10 text-center">
                             <div className="w-20 h-20 bg-blue-50 text-blue-500 rounded-full flex items-center justify-center text-3xl mb-6">{categoryInfo.icon}</div>
                             <h4 className="text-2xl font-black text-gray-900">Upload {categoryInfo.name}</h4>
-                            <p className="text-gray-500 max-w-sm mt-2 mb-8 font-medium">Add a high-quality video effect or a ZIP collection for this category.</p>
-                            
-                            <div className="flex gap-4 mb-8">
-                              <button 
-                                onClick={() => setIsZipMode(false)} 
-                                className={`px-6 py-2 rounded-full text-sm font-bold transition-all ${!isZipMode ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-500'}`}
-                              >
-                                Single Video
-                              </button>
-                              <button 
-                                onClick={() => setIsZipMode(true)} 
-                                className={`px-6 py-2 rounded-full text-sm font-bold transition-all ${isZipMode ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-500'}`}
-                              >
-                                Batch ZIP
-                              </button>
-                            </div>
+                            <p className="text-gray-500 max-w-sm mt-2 mb-8 font-medium">Add a high-quality video effect for this category.</p>
 
-                            {isZipMode ? (
-                              <div className="w-full max-w-md space-y-4 text-left">
-                                <div>
-                                    <label className="block text-sm font-bold text-gray-700 mb-1">Upload Title</label>
-                                    <input 
-                                        type="text"
-                                        value={uploadTitle}
-                                        onChange={(e) => setUploadTitle(e.target.value)}
-                                        className="w-full px-4 py-3 bg-gray-50 border-none rounded-2xl font-bold text-gray-800 outline-none ring-2 ring-transparent focus:ring-blue-100 transition-all"
-                                        placeholder="E.g. Festival Special Collection"
-                                    />
-                                </div>
-
-                                <div 
-                                    className={`border-2 border-dashed rounded-3xl p-8 text-center transition-all cursor-pointer ${
-                                        zipFile ? 'border-green-500 bg-green-50' : 'border-gray-200 hover:border-blue-500 hover:bg-blue-50'
-                                    }`}
-                                    onClick={() => !isUploadingZip && zipFileInputRef.current?.click()}
-                                >
-                                    <input type="file" ref={zipFileInputRef} accept=".zip" className="hidden" onChange={handleZipFileChange} />
-                                    {zipFile ? (
-                                        <div className="flex flex-col items-center">
-                                            <FaFileArchive className="text-4xl text-green-600 mb-2" />
-                                            <p className="font-bold text-green-800">{zipFile.name}</p>
-                                            <p className="text-xs text-green-600">{formatFileSize(zipFile.size)}</p>
-                                        </div>
-                                    ) : (
-                                        <div className="flex flex-col items-center">
-                                            <FaUpload className="text-3xl text-gray-300 mb-2" />
-                                            <p className="font-bold text-gray-500">Select ZIP Collection</p>
-                                        </div>
-                                    )}
-                                </div>
-
-                                {isUploadingZip && (
-                                    <div className="space-y-2">
-                                        <div className="flex justify-between text-[10px] font-black uppercase text-blue-500">
-                                            <span>Uploading... {uploadProgress}%</span>
-                                            <span>Elapsed: {formatTime(elapsedTime)}</span>
-                                        </div>
-                                        <div className="w-full bg-gray-100 rounded-full h-2">
-                                            <div className="bg-blue-500 h-2 rounded-full transition-all" style={{ width: `${uploadProgress}%` }}></div>
-                                        </div>
-                                    </div>
-                                )}
-
-                                <button
-                                    onClick={handleUploadZip}
-                                    disabled={!zipFile || !uploadTitle || isUploadingZip}
-                                    className="w-full py-4 bg-blue-600 text-white rounded-2xl font-bold shadow-xl shadow-blue-100 flex items-center justify-center gap-2 hover:bg-blue-700 transition-all disabled:opacity-50"
-                                >
-                                    {isUploadingZip ? <FaSpinner className="animate-spin" /> : <><FaSave /> Upload ZIP Collection</>}
-                                </button>
-                              </div>
-                            ) : (
-                              newVideo ? (
+                            {newVideo ? (
                                 <div className="w-full max-w-md space-y-4">
                                    <div className="aspect-video relative rounded-2xl overflow-hidden bg-black">
                                       <video src={newVideo.preview} playsInline className="w-full h-full object-cover" />
@@ -490,8 +351,7 @@ const Animations = () => {
                                    </div>
                                    <input type="file" accept="video/*" onChange={handleVideoSelect} className="hidden" />
                                 </label>
-                              )
-                            )}
+                              )}
                           </div>
                         )
                       }
