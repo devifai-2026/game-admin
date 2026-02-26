@@ -74,7 +74,6 @@ const VideoCard = ({ idol, godId, isSaved = false, onView, onDelete, onEdit, new
           )}
         </div>
       </div>
-      
       <div className="p-4">
         <p className="font-bold text-sm truncate text-gray-800" title={fileName}>
           {fileName}
