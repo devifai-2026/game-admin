@@ -73,8 +73,8 @@ const UserManagement = () => {
   }, [searchTerm])
 
   return (
-    <div className="bg-white rounded-lg shadow-lg p-6">
-      <h2 className="text-2xl font-bold mb-6" style={{ color: '#cc494c' }}>
+    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 sm:p-6">
+      <h2 className="text-2xl sm:text-3xl font-black mb-6 tracking-tight" style={{ color: '#cc494c' }}>
         User Management
       </h2>
       
@@ -84,19 +84,21 @@ const UserManagement = () => {
           placeholder="Search users by name or email..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2"
-          style={{ borderColor: '#e7ada1' }}
+          className="w-full px-4 py-3 border-2 rounded-xl focus:outline-none transition-all font-medium text-sm"
+          style={{ borderColor: '#e7ada1', focusBorderColor: '#cc494c' }}
+          onFocus={e => e.target.style.borderColor = '#cc494c'}
+          onBlur={e => e.target.style.borderColor = '#e7ada1'}
         />
       </div>
 
       <div className="overflow-x-auto">
         <table className="w-full">
           <thead>
-            <tr className="border-b" style={{ backgroundColor: '#fef2f2' }}>
-              <th className="py-3 px-4 text-left">ID</th>
-              <th className="py-3 px-4 text-left">Name</th>
-              <th className="py-3 px-4 text-left">Email</th>
-              <th className="py-3 px-4 text-left">Join Date</th>
+            <tr className="border-b" style={{ backgroundColor: '#fff5f5' }}>
+              <th className="py-3 px-4 text-left text-[10px] font-black uppercase tracking-widest" style={{ color: '#cc494c' }}>ID</th>
+              <th className="py-3 px-4 text-left text-[10px] font-black uppercase tracking-widest" style={{ color: '#cc494c' }}>Name</th>
+              <th className="py-3 px-4 text-left text-[10px] font-black uppercase tracking-widest" style={{ color: '#cc494c' }}>Email</th>
+              <th className="py-3 px-4 text-left text-[10px] font-black uppercase tracking-widest" style={{ color: '#cc494c' }}>Join Date</th>
             </tr>
           </thead>
           <tbody>
@@ -146,11 +148,12 @@ const UserManagement = () => {
               <button
                 key={number}
                 onClick={() => paginate(number)}
-                className={`px-3 py-1 rounded-md ${
-                  currentPage === number
-                    ? 'bg-red-100 text-red-600 font-semibold'
-                    : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
-                }`}
+              className={`px-3 py-1.5 rounded-lg font-semibold text-sm transition-all ${
+                currentPage === number
+                  ? 'text-white'
+                  : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
+              }`}
+              style={currentPage === number ? { backgroundColor: '#cc494c' } : {}}
               >
                 {number}
               </button>

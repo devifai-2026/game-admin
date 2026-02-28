@@ -105,8 +105,8 @@ const Settings = () => {
   }
 
   return (
-    <div className="bg-white rounded-lg shadow-lg p-6 max-w-4xl mx-auto">
-      <h2 className="text-2xl font-bold mb-6 border-b pb-4" style={{ color: '#cc494c' }}>Account Settings</h2>
+    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 sm:p-6 max-w-4xl mx-auto">
+      <h2 className="text-2xl sm:text-3xl font-black mb-6 border-b pb-4 tracking-tight" style={{ color: '#cc494c' }}>Account Settings</h2>
 
       {message.text && (
         <div className={`p-4 mb-6 rounded-lg ${message.type === 'error' ? 'bg-red-50 text-red-700 border border-red-200' : 'bg-green-50 text-green-700 border border-green-200'}`}>
@@ -117,7 +117,7 @@ const Settings = () => {
       <div className="grid md:grid-cols-2 gap-8">
         {/* Profile Information */}
         <div>
-          <h3 className="text-lg font-semibold mb-4 flex items-center" style={{ color: '#fea947' }}>
+          <h3 className="text-base font-black mb-4 flex items-center uppercase tracking-wide" style={{ color: '#cc494c' }}>
             <FaUser className="mr-2" /> Profile Information
           </h3>
           
@@ -156,7 +156,7 @@ const Settings = () => {
 
         {/* Change Password */}
         <div>
-          <h3 className="text-lg font-semibold mb-4 flex items-center" style={{ color: '#fea947' }}>
+          <h3 className="text-base font-black mb-4 flex items-center uppercase tracking-wide" style={{ color: '#cc494c' }}>
             <FaLock className="mr-2" /> Change Password
           </h3>
           
@@ -169,7 +169,7 @@ const Settings = () => {
                   value={passwordForm.currentPassword}
                   onChange={(e) => setPasswordForm({...passwordForm, currentPassword: e.target.value})}
                   className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:border-transparent outline-none transition-all pr-10"
-                  style={{ '--tw-ring-color': '#fea947', borderColor: '#e5e7eb' }}
+                  style={{ '--tw-ring-color': '#cc494c', borderColor: '#e5e7eb' }}
                   required
                 />
                 <button
@@ -190,7 +190,7 @@ const Settings = () => {
                   value={passwordForm.newPassword}
                   onChange={(e) => setPasswordForm({...passwordForm, newPassword: e.target.value})}
                   className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:border-transparent outline-none transition-all pr-10"
-                  style={{ '--tw-ring-color': '#fea947', borderColor: '#e5e7eb' }}
+                  style={{ '--tw-ring-color': '#cc494c', borderColor: '#e5e7eb' }}
                   required
                   minLength={6}
                 />
@@ -212,7 +212,7 @@ const Settings = () => {
                   value={passwordForm.confirmPassword}
                   onChange={(e) => setPasswordForm({...passwordForm, confirmPassword: e.target.value})}
                   className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:border-transparent outline-none transition-all pr-10"
-                  style={{ '--tw-ring-color': '#fea947', borderColor: '#e5e7eb' }}
+                  style={{ '--tw-ring-color': '#cc494c', borderColor: '#e5e7eb' }}
                   required
                   minLength={6}
                 />

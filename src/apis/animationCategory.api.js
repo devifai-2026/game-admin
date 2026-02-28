@@ -11,7 +11,7 @@ const animationCategoryAPI = {
     } catch (error) {
       return {
         success: false,
-        message: error.message || 'Failed to fetch categories'
+        message: error.response?.data?.message || error.message || 'Failed to fetch categories'
       };
     }
   },
@@ -26,7 +26,7 @@ const animationCategoryAPI = {
     } catch (error) {
       return {
         success: false,
-        message: error.message || 'Failed to create category'
+        message: error.response?.data?.message || error.message || 'Failed to create category'
       };
     }
   },
@@ -41,7 +41,7 @@ const animationCategoryAPI = {
     } catch (error) {
       return {
         success: false,
-        message: error.message || 'Failed to update category'
+        message: error.response?.data?.message || error.message || 'Failed to update category'
       };
     }
   },
@@ -56,7 +56,22 @@ const animationCategoryAPI = {
     } catch (error) {
       return {
         success: false,
-        message: error.message || 'Failed to delete category'
+        message: error.response?.data?.message || error.message || 'Failed to delete category'
+      };
+    }
+  },
+
+  toggleCategory: async (id) => {
+    try {
+      const response = await axiosInstance.patch(`/animation-categories/${id}/toggle`);
+      return {
+        success: true,
+        data: response.data
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: error.response?.data?.message || error.message || 'Failed to toggle category'
       };
     }
   }

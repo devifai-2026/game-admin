@@ -109,6 +109,7 @@ const GodIdol = () => {
   const [actionLoading, setActionLoading] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
+  const [searchTerm, setSearchTerm] = useState('')
 
 
 
@@ -128,6 +129,10 @@ const GodIdol = () => {
   useEffect(() => {
     fetchInitialData()
   }, [])
+
+  const filteredGods = gods.filter(g =>
+    g.name?.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
 
 
@@ -377,46 +382,62 @@ const GodIdol = () => {
   }
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-500">
+    <div className="space-y-6 sm:space-y-8 animate-in fade-in duration-500">
       {/* Messages */}
       {(error || success) && (
-        <div className="fixed top-24 right-8 z-[60] flex flex-col gap-3 max-w-sm w-full">
+        <div className="fixed top-20 right-4 sm:right-8 z-[60] flex flex-col gap-3 max-w-xs sm:max-w-sm w-full">
            {error && (
-             <div className="bg-red-50 border border-red-200 p-4 rounded-xl shadow-xl flex items-center justify-between text-red-700 animate-in slide-in-from-right">
-                <div className="flex items-center gap-3">
-                   <FaTimesCircle className="text-xl" />
-                   <p className="text-sm font-semibold">{error}</p>
+             <div className="bg-red-50 border border-red-200 p-3 sm:p-4 rounded-xl shadow-xl flex items-center justify-between text-red-700">
+                <div className="flex items-center gap-2 sm:gap-3">
+                   <FaTimesCircle className="text-lg flex-shrink-0" />
+                   <p className="text-sm font-semibold line-clamp-2">{error}</p>
                 </div>
-                <button onClick={() => setError('')}><FaTimes /></button>
+                <button onClick={() => setError('')} className="flex-shrink-0 ml-2"><FaTimes /></button>
              </div>
            )}
            {success && (
-             <div className="bg-green-50 border border-green-200 p-4 rounded-xl shadow-xl flex items-center justify-between text-green-700 animate-in slide-in-from-right">
-                <div className="flex items-center gap-3">
-                   <FaCheck className="text-xl" />
-                   <p className="text-sm font-semibold">{success}</p>
+             <div className="bg-green-50 border border-green-200 p-3 sm:p-4 rounded-xl shadow-xl flex items-center justify-between text-green-700">
+                <div className="flex items-center gap-2 sm:gap-3">
+                   <FaCheck className="text-lg flex-shrink-0" />
+                   <p className="text-sm font-semibold line-clamp-2">{success}</p>
                 </div>
-                <button onClick={() => setSuccess('')}><FaTimes /></button>
+                <button onClick={() => setSuccess('')} className="flex-shrink-0 ml-2"><FaTimes /></button>
              </div>
            )}
         </div>
       )}
 
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-6 rounded-2xl shadow-sm">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-5 sm:p-6 rounded-2xl shadow-sm">
         <div>
-          <h2 className="text-3xl font-black tracking-tighter" style={{ color: '#cc494c' }}>
+          <h2 className="text-2xl sm:text-3xl font-black tracking-tighter" style={{ color: '#cc494c' }}>
             God Idol Management
           </h2>
-          <p className="text-gray-500 font-medium mt-1">Assign introductory spiritual videos to each god.</p>
+          <p className="text-gray-500 font-semibold mt-1 text-sm">Assign introductory spiritual videos to each god.</p>
         </div>
-        <div className="flex items-center gap-2 px-4 py-2 bg-orange-50 text-orange-700 rounded-full text-sm font-bold">
-            <FaFilm /> {idols.length} / {gods.length} Idols Assigned
+        <div className="flex items-center gap-3 w-full sm:w-auto">
+          <div className="relative flex-1 sm:w-56">
+            <svg className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-300 w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" /></svg>
+            <input
+              type="text"
+              placeholder="Search gods..."
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+              className="w-full pl-8 pr-3 py-2.5 bg-gray-50 rounded-xl border-none outline-none font-semibold text-sm focus:bg-white transition-all ring-2 ring-transparent focus:ring-red-100"
+            />
+          </div>
+          <div className="flex items-center gap-2 px-4 py-2 bg-red-50 rounded-full text-sm font-bold shrink-0" style={{ color: '#cc494c' }}>
+            <FaFilm /> {idols.length} / {gods.length}
+          </div>
         </div>
       </div>
 
       {/* God Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-        {gods.map((god) => {
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 sm:gap-8">
+        {filteredGods.length === 0 ? (
+          <div className="col-span-full py-16 text-center text-gray-400 font-semibold">
+            {searchTerm ? `No gods match "${searchTerm}"` : 'No gods found.'}
+          </div>
+        ) : filteredGods.map((god) => {
           const associatedIdol = idols.find(i => i.godId?._id === god._id || i.godId === god._id)
           const hasSelectedVideo = !!newVideos[god._id]
 
@@ -424,33 +445,36 @@ const GodIdol = () => {
           return (
             <div 
               key={god._id}
-              className={`bg-white rounded-3xl overflow-hidden border-2 transition-all duration-300 ${associatedIdol ? 'border-gray-50' : 'border-orange-100 shadow-sm'}`}
+              className={`bg-white rounded-3xl overflow-hidden border-2 transition-all duration-300 ${associatedIdol ? 'border-gray-50' : 'border-red-50 shadow-sm'}`}
             >
-              {/* God Header */}
-              <div className="p-6 pb-0 flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                   <div className="w-14 h-14 rounded-2xl overflow-hidden border-2 border-orange-100 bg-orange-50 flex-shrink-0">
-                      <img src={god.image} alt={god.name} className="w-full h-full object-cover" />
-                   </div>
-                   <div>
-                      <h3 className="text-sm font-black text-gray-800 leading-none">{god.name}</h3>
-                      <span className="text-xs font-bold text-orange-500 uppercase tracking-widest">{god.category || 'Deity'}</span>
-                   </div>
-                </div>
-                <button 
+              {/* Add Animation — top bar */}
+              <div className="px-4 pt-4">
+                <button
                   onClick={() => handleAddAnimation(god)}
-                  className="p-3 bg-orange-600 text-white rounded-2xl hover:bg-orange-700 transition-all shadow-lg flex items-center gap-1 text-[10px] font-black uppercase  text-nowrap"
+                  className="w-full py-2.5 text-white rounded-2xl hover:opacity-90 transition-all shadow-md flex items-center justify-center gap-2 text-[11px] font-black uppercase tracking-widest"
+                  style={{ backgroundColor: '#cc494c' }}
                 >
-                  <FaFilm className="text-xs " /> Add Anim
+                  <FaFilm className="text-xs" /> Add Animation
                 </button>
+              </div>
+
+              {/* God Header */}
+              <div className="p-6 pb-0 flex items-center gap-4">
+                 <div className="w-14 h-14 rounded-2xl overflow-hidden border-2 bg-gray-50 flex-shrink-0" style={{ borderColor: '#fde9c9' }}>
+                    <img src={god.image} alt={god.name} className="w-full h-full object-cover" />
+                 </div>
+                 <div>
+                    <h3 className="text-sm font-black text-gray-800 leading-none">{god.name}</h3>
+                  
+                 </div>
               </div>
 
                   <div className="p-6 pt-6">
                 <div className="space-y-6">
                 {associatedIdol ? (
                   <>
-                    <div className="bg-orange-50/50 p-4 rounded-2xl border border-orange-100/50">
-                        <label className="text-[10px] font-black uppercase text-orange-600 tracking-widest mb-3 block">Primary Idol Video</label>
+                    <div className="p-4 rounded-2xl border" style={{ backgroundColor: '#fff5f5', borderColor: '#fce8e8' }}>
+                        <label className="text-[10px] font-black uppercase tracking-widest mb-3 block" style={{ color: '#cc494c' }}>Primary Idol Video</label>
                         <VideoCard 
                             idol={associatedIdol} 
                             godId={god._id}
@@ -463,7 +487,7 @@ const GodIdol = () => {
 
                     {/* Show Animations */}
                     <div className="space-y-3">
-                        <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest block px-1">Special Animations ({animations.filter(a => a.godIdol?._id === associatedIdol._id || a.godIdol === associatedIdol._id).length})</label>
+                        <label className="text-[10px] font-black uppercase tracking-widest block px-1" style={{ color: '#cc494c' }}>Animations ({animations.filter(a => a.godIdol?._id === associatedIdol._id || a.godIdol === associatedIdol._id).length})</label>
                         <div className="grid grid-cols-2 gap-3">
                             {animations
                                 .filter(a => a.godIdol?._id === associatedIdol._id || a.godIdol === associatedIdol._id)
@@ -495,7 +519,7 @@ const GodIdol = () => {
                                         {/* Category Label */}
                                         <div className="mt-1 flex items-center gap-1 px-1 overflow-hidden">
                                             {anim.category?.icon && <img src={anim.category.icon} className="w-3 h-3 rounded-full object-cover flex-shrink-0" />}
-                                            <p className="text-[10px] font-bold text-gray-600 truncate">{anim.category?.name || 'Animation'}</p>
+                                            <p className="text-[10px] font-semibold text-gray-600 truncate">{anim.category?.name || 'Animation'}</p>
                                         </div>
                                     </div>
                                 ))
@@ -517,7 +541,8 @@ const GodIdol = () => {
                            <button
                              onClick={() => saveGodIdol(god._id)}
                              disabled={actionLoading}
-                             className="flex-1 py-3 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 transition-all flex items-center justify-center gap-2"
+                             className="flex-1 py-3 text-white rounded-xl font-bold hover:opacity-90 transition-all flex items-center justify-center gap-2"
+                             style={{ backgroundColor: '#cc494c' }}
                            >
                              {actionLoading ? <FaSpinner className="animate-spin" /> : <><FaSave /> Save</>}
                            </button>
@@ -526,12 +551,12 @@ const GodIdol = () => {
                       </div>
                     ) : (
                       <div className="aspect-video bg-gray-50 rounded-2xl border-2 border-dashed border-gray-200 flex flex-col items-center justify-center text-center p-6 group/upload">
-                        <div className="w-12 h-12 bg-white rounded-xl shadow-sm flex items-center justify-center text-gray-400 group-hover/upload:text-orange-500 group-hover/upload:scale-110 transition-all duration-300 mb-3">
+                        <div className="w-12 h-12 bg-white rounded-xl shadow-sm flex items-center justify-center text-gray-400 transition-all duration-300 mb-3 group-hover/upload:scale-110" style={{}} onMouseEnter={e => e.currentTarget.style.color='#cc494c'} onMouseLeave={e => e.currentTarget.style.color='#9ca3af'}>
                            <FaUpload />
                         </div>
-                        <p className="text-sm font-bold text-gray-800">No Idol Assigned</p>
+                        <p className="text-sm font-semibold text-gray-700">No Idol Assigned</p>
                         <label className="cursor-pointer mt-4">
-                          <div className="px-5 py-2 bg-white border border-gray-200 rounded-full text-xs font-bold text-gray-600 hover:bg-gray-800 hover:text-white transition-all shadow-sm">
+                          <div className="px-5 py-2 bg-white border border-gray-200 rounded-full text-xs font-bold text-gray-600 hover:text-white transition-all shadow-sm" style={{}} onMouseEnter={e => { e.currentTarget.style.backgroundColor='#cc494c'; e.currentTarget.style.borderColor='#cc494c'; }} onMouseLeave={e => { e.currentTarget.style.backgroundColor='white'; e.currentTarget.style.borderColor='#e5e7eb'; }}>
                             Select Video
                           </div>
                           <input
@@ -554,9 +579,9 @@ const GodIdol = () => {
 
       {/* Modals */}
       {viewVideo && (
-        <div className="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-[100] p-4" onClick={() => setViewVideo(null)}>
-          <div className="relative max-w-5xl w-full bg-white rounded-3xl overflow-hidden shadow-2xl" onClick={e => e.stopPropagation()}>
-            <div className="p-4 bg-gray-900 text-white flex justify-between items-center">
+        <div className="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-[9999] p-4" onClick={() => setViewVideo(null)}>
+          <div className="relative max-w-5xl w-full bg-white rounded-t-3xl sm:rounded-3xl overflow-hidden shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="p-4 text-white flex justify-between items-center" style={{ backgroundColor: '#cc494c' }}>
                <div className="flex items-center gap-3">
                   <div className="w-2 h-2 rounded-full bg-orange-500 animate-pulse"></div>
                   <h3 className="text-sm font-bold">{viewVideo.name}</h3>
@@ -574,8 +599,8 @@ const GodIdol = () => {
       )}
 
       {editingIdol && (
-        <div className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-[100] p-4">
-          <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full p-8 space-y-6">
+        <div className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-[9999] p-4">
+          <div className="bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl max-w-md w-full p-6 sm:p-8 space-y-5 sm:space-y-6 max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center">
                <h3 className="text-2xl font-black text-gray-800">Update Idol Video</h3>
                <button onClick={() => setEditingIdol(null)} className="text-gray-400 hover:text-gray-600"><FaTimes /></button>
@@ -598,7 +623,8 @@ const GodIdol = () => {
                <button
                  onClick={handleUpdateIdol}
                  disabled={actionLoading || !editFile}
-                 className="flex-1 py-4 bg-gray-900 text-white rounded-2xl font-bold shadow-xl hover:bg-black transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                 className="flex-1 py-4 text-white rounded-2xl font-bold shadow-xl hover:opacity-90 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                 style={{ backgroundColor: '#cc494c' }}
                >
                  {actionLoading ? <FaSpinner className="animate-spin" /> : <><FaCheck />Confirm Update</>}
                </button>
@@ -615,9 +641,9 @@ const GodIdol = () => {
 
       {/* Add Animation Modal */}
       {isAnimationModalOpen && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[150] flex items-center justify-center p-4">
-          <div className="bg-white rounded-[40px] shadow-2xl w-full max-w-lg p-10 relative">
-            <div className="flex justify-between items-center mb-8">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
+          <div className="bg-white rounded-t-[32px] sm:rounded-[40px] shadow-2xl w-full sm:max-w-lg p-6 sm:p-10 relative max-h-[95vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-6 sm:mb-8">
               <div>
                 <h2 className="text-3xl font-black text-gray-900 italic leading-none">Add Animation</h2>
                 <p className="text-gray-400 text-xs font-bold mt-2 uppercase tracking-widest">For {selectedGodForAnim?.name}</p>
@@ -632,14 +658,14 @@ const GodIdol = () => {
 
             <form onSubmit={handleAnimSubmit} className="space-y-6">
               <div>
-                <label className="text-[10px] font-black uppercase text-orange-500 tracking-[0.2em] ml-1">Select Category</label>
+                <label className="text-[10px] font-black uppercase text-orange-500 tracking-[0.2em] ml-1">Select Animation</label>
                 <select 
                   required
                   value={animForm.categoryId}
                   onChange={e => setAnimForm({...animForm, categoryId: e.target.value})}
                   className="w-full p-4 rounded-2xl bg-gray-50 border-none outline-none font-bold mt-1 appearance-none cursor-pointer"
                 >
-                  <option value="">Select Category...</option>
+                  <option value="">Select Animation...</option>
                   {animCategories.map(cat => (
                     <option key={cat._id} value={cat._id}>
                       {cat.name}
@@ -688,7 +714,8 @@ const GodIdol = () => {
                 <button 
                   type="submit" 
                   disabled={animLoading}
-                  className="flex-1 py-4 bg-gray-900 text-white rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-black transition-all shadow-xl flex items-center justify-center gap-2 disabled:opacity-50"
+                  className="flex-1 py-4 text-white rounded-2xl font-black uppercase text-xs tracking-widest hover:opacity-90 transition-all shadow-xl flex items-center justify-center gap-2 disabled:opacity-50"
+                  style={{ backgroundColor: '#cc494c' }}
                 >
                   {animLoading ? <FaSpinner className="animate-spin" /> : <><FaCheck className="text-sm" /> Save Animation</>}
                 </button>

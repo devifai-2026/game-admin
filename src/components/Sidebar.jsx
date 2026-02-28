@@ -31,7 +31,7 @@ const Sidebar = ({ isCollapsed = false, onToggle, onLogout }) => {
     },
     { 
       path: '/dashboard/gods', 
-      label: 'Gods', 
+      label: 'God Management', 
       icon: <MdSpaceDashboard className="text-lg" />,
       shortLabel: 'Gods'
     },

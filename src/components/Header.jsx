@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { FaBars, FaSignOutAlt } from 'react-icons/fa'
+import { FaSignOutAlt } from 'react-icons/fa'
 import { useNavigate } from 'react-router-dom'
 import authAPI from '../apis/auth.api'
 
@@ -38,15 +38,6 @@ const Header = ({ onLogout, onSidebarToggle }) => {
   return (
     <header className="bg-white shadow-sm px-4 md:px-6 py-4 flex justify-between items-center fixed top-0 left-0 right-0 z-40">
       <div className="flex items-center">
-        <button
-          onClick={onSidebarToggle}
-          className="mr-4 p-2 rounded-lg hover:bg-gray-100 transition-colors"
-          style={{ color: '#cc494c' }}
-          aria-label="Toggle sidebar"
-          disabled={isLoggingOut}
-        >
-          <FaBars className="text-lg" />
-        </button>
         <div>
           <h1 className="text-xl md:text-2xl font-bold" style={{ color: '#cc494c' }}>
             Admin Dashboard

@@ -11,6 +11,7 @@ const SplashScreen = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
 
   // Load splash screens from API on component mount
   useEffect(() => {
@@ -336,7 +337,7 @@ const SplashScreen = () => {
           <div className="absolute top-2 left-2 z-10">
             <div className="w-8 h-8 flex items-center justify-center rounded-full text-white font-bold shadow-lg"
                  style={{ backgroundColor: video.position === 1 ? '#cc494c' : 
-                                     video.position === 2 ? '#fea947' : 
+                                     video.position === 2 ? '#cc494c' : 
                                      video.position === 3 ? '#4CAF50' : 
                                      '#2196F3' }}>
               {video.position || '?'}
@@ -433,7 +434,7 @@ const SplashScreen = () => {
                 <div className="flex items-center gap-2">
                   <div className="w-6 h-6 flex items-center justify-center rounded-full text-white font-bold text-sm"
                        style={{ backgroundColor: viewVideo.position === 1 ? '#cc494c' : 
-                                           viewVideo.position === 2 ? '#fea947' : 
+                                           viewVideo.position === 2 ? '#cc494c' : 
                                            viewVideo.position === 3 ? '#4CAF50' : 
                                            '#2196F3' }}>
                     {viewVideo.position || '?'}
@@ -499,12 +500,12 @@ const SplashScreen = () => {
       
       {/* Upload Section */}
       <div className="mb-10 group">
-        <div className={`p-8 border-2 border-dashed rounded-2xl transition-all duration-300 ${videos.length > 0 ? 'bg-white border-blue-200 shadow-sm' : 'bg-gray-50 border-gray-200 hover:border-blue-300'}`}>
+        <div className={`p-8 border-2 border-dashed rounded-2xl transition-all duration-300 ${videos.length > 0 ? 'bg-white border-red-100 shadow-sm' : 'bg-gray-50 border-gray-200'}`} style={videos.length === 0 ? {} : {}}>
           <div className="flex flex-col items-center justify-center text-center">
             {videos.length === 0 ? (
               <>
-                <div className="w-20 h-20 bg-blue-50 rounded-full flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300">
-                  <FaUpload className="text-3xl text-blue-500" />
+                <div className="w-20 h-20 rounded-full flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300" style={{ backgroundColor: '#fff0f0' }}>
+                  <FaUpload className="text-3xl" style={{ color: '#cc494c' }} />
                 </div>
                 <h3 className="text-xl font-bold text-gray-800">Choose Splash Videos</h3>
                 <p className="text-gray-500 max-w-sm mb-6 mt-1">
@@ -512,7 +513,7 @@ const SplashScreen = () => {
                 </p>
                 
                 <label className="relative overflow-hidden group/btn">
-                  <div className="flex items-center px-8 py-3 bg-blue-600 text-white rounded-xl font-bold shadow-lg shadow-blue-200 hover:bg-blue-700 hover:shadow-xl transition-all duration-300 cursor-pointer">
+                  <div className="flex items-center px-8 py-3 text-white rounded-xl font-bold shadow-lg hover:opacity-90 hover:shadow-xl transition-all duration-300 cursor-pointer" style={{ backgroundColor: '#cc494c', boxShadow: '0 4px 14px rgba(204,73,76,0.3)' }}>
                     <FaUpload className="mr-2" /> Select Videos
                   </div>
                   <input
@@ -554,15 +555,16 @@ const SplashScreen = () => {
                   ))}
                 </div>
 
-                <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center items-center p-6 bg-blue-50 rounded-xl border border-blue-100">
-                  <div className="flex items-center gap-2 text-blue-700 font-medium">
+                <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center items-center p-6 rounded-xl border" style={{ backgroundColor: '#fff8f0', borderColor: '#fde9c9' }}>
+                  <div className="flex items-center gap-2 font-medium" style={{ color: '#cc494c' }}>
                     <FaExclamationTriangle size={18} />
                     <span>Total splash screens will be {savedVideos.length + videos.length}/4</span>
                   </div>
                   <button
                     onClick={saveAllVideos}
                     disabled={uploading || savedVideos.length + videos.length > 4}
-                    className={`flex items-center px-10 py-3 bg-blue-600 text-white rounded-xl font-bold shadow-lg shadow-blue-200 hover:bg-blue-700 hover:shadow-xl transition-all duration-300 ${uploading ? 'opacity-70 cursor-wait' : ''}`}
+                    className={`flex items-center px-10 py-3 text-white rounded-xl font-bold transition-all duration-300 ${uploading ? 'opacity-70 cursor-wait' : 'hover:opacity-90'}`}
+                    style={{ backgroundColor: '#cc494c', boxShadow: '0 4px 14px rgba(204,73,76,0.3)' }}
                   >
                     {uploading ? (
                       <>
@@ -582,32 +584,52 @@ const SplashScreen = () => {
       </div>
 
       {/* Saved Section */}
-      <div className="space-y-6">
-        <div className="flex items-center gap-3">
-          <div className="w-1.5 h-6 bg-red-500 rounded-full"></div>
-          <h3 className="text-xl font-bold text-gray-800">Live Splash Screens</h3>
-          <span className="px-2.5 py-0.5 bg-gray-100 text-gray-600 rounded-full text-xs font-bold">
-            {savedVideos.length}/4
-          </span>
+      <div className="space-y-4">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-1.5 h-6 rounded-full" style={{ backgroundColor: '#cc494c' }}></div>
+            <h3 className="text-xl font-bold text-gray-800">Live Splash Screens</h3>
+            <span className="px-2.5 py-0.5 bg-gray-100 text-gray-600 rounded-full text-xs font-bold">
+              {savedVideos.length}/4
+            </span>
+          </div>
+          <div className="relative w-full sm:w-52">
+            <svg className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-300 w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" /></svg>
+            <input
+              type="text"
+              placeholder="Search videos..."
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+              className="w-full pl-8 pr-3 py-2.5 bg-gray-50 rounded-xl border-none outline-none font-semibold text-sm focus:bg-white transition-all ring-2 ring-transparent focus:ring-red-100"
+            />
+          </div>
         </div>
 
         {loading && savedVideos.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 bg-gray-50 rounded-2xl border border-dashed border-gray-200">
-            <FaSpinner className="animate-spin text-4xl text-blue-500 mb-4" />
+            <FaSpinner className="animate-spin text-4xl mb-4" style={{ color: '#cc494c' }} />
             <p className="text-gray-500 font-medium">Fetching saved videos...</p>
           </div>
         ) : savedVideos.length > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {savedVideos.sort((a, b) => a.position - b.position).map((video) => (
-              <VideoCard 
-                key={video._id} 
-                video={video} 
+            {savedVideos
+              .filter(v => v.name?.toLowerCase().includes(searchTerm.toLowerCase()))
+              .sort((a, b) => a.position - b.position)
+              .map((video) => (
+              <VideoCard
+                key={video._id}
+                video={video}
                 isSaved={true}
                 onView={setViewVideo}
                 onDelete={removeSavedVideo}
                 onEdit={handleEditVideo}
               />
             ))}
+            {savedVideos.filter(v => v.name?.toLowerCase().includes(searchTerm.toLowerCase())).length === 0 && (
+              <div className="col-span-full py-10 text-center text-gray-400 font-semibold">
+                No videos match "{searchTerm}"
+              </div>
+            )}
           </div>
         ) : (
           <div className="flex flex-col items-center justify-center py-20 bg-gray-50 rounded-2xl border border-dashed border-gray-200">
