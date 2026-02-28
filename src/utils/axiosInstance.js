@@ -3,7 +3,7 @@ import axios from 'axios';
 
 // Create base instance with default config
 const axiosInstance = axios.create({
-  baseURL: 'http://devifai.website/api/v1', // DEV: local backend | PROD: https://devifai.website/api/v1
+  baseURL: 'https://devifai.website/api/v1', // DEV: local backend | PROD: https://devifai.website/api/v1
   timeout: 30000, // 30 seconds timeout
   headers: {
     'Content-Type': 'application/json',
