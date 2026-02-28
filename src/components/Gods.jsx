@@ -1,929 +1,572 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { FaUpload, FaTrash, FaSave, FaTimes, FaImage, FaEdit, FaCheck, FaSpinner, FaExclamationTriangle, FaCheckCircle, FaEye } from 'react-icons/fa';
+import React, { useState, useEffect } from 'react';
+import { 
+  FaPlus, FaTrash, FaEdit, FaSave, FaTimes, FaSpinner, 
+  FaExclamationTriangle, FaCheck, FaFilm, FaVideo, 
+  FaPlay, FaEye, FaChevronRight, FaImage, FaEllipsisV,
+  FaArrowLeft, FaArrowRight, FaSearch, FaMagic
+} from 'react-icons/fa';
 import godAPI from '../apis/god.api';
+import godIdolAPI from '../apis/godIdol.api';
+import animationAPI from '../apis/animation.api';
+import animationCategoryAPI from '../apis/animationCategory.api';
 
-const Gods = () => {
-  const [gods, setGods] = useState([]);
-  const [newImages, setNewImages] = useState([]);
-  const [editingGod, setEditingGod] = useState(null);
-  const [newImageFile, setNewImageFile] = useState(null);
-  const [viewImage, setViewImage] = useState(null); // New state for viewing image
-  const [formData, setFormData] = useState({
-    name: '',
-    description: ''
-  });
-  const [loading, setLoading] = useState(true);
-  const [uploading, setUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
-  
-  const fileInputRef = useRef(null);
-  const editFileInputRef = useRef(null);
-
-  // Load gods on mount
-  useEffect(() => {
-    fetchGods();
-  }, []);
-
-  // Clear messages after 3 seconds
-  useEffect(() => {
-    if (error || success) {
-      const timer = setTimeout(() => {
-        setError('');
-        setSuccess('');
-      }, 3000);
-      return () => clearTimeout(timer);
-    }
-  }, [error, success]);
-
-  // Fetch all gods
-  const fetchGods = async () => {
-    setLoading(true);
-    setError('');
+const GodsManagement = () => {
+    const [gods, setGods] = useState([]);
+    const [categories, setCategories] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [actionLoading, setActionLoading] = useState(false);
+    const [error, setError] = useState('');
+    const [success, setSuccess] = useState('');
     
-    const result = await godAPI.getAllGods(1, 50); // Get first 50 gods
+    // UI states
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [editingGodId, setEditingGodId] = useState(null);
+    const [activeActionMenu, setActiveActionMenu] = useState(null);
+    const [viewVideo, setViewVideo] = useState(null);
+    const [searchTerm, setSearchTerm] = useState('');
+    const [pagination, setPagination] = useState({ page: 1, limit: 10, total: 0, pages: 1 });
     
-    if (result.success) {
-      // Transform API data to match your UI format
-      const transformedGods = result.data.gods?.map(god => ({
-        id: god._id,
-        name: god.name,
-        preview: god.image,
-        size: '2.4 MB', // Default size
-        uploaded: new Date(god.createdAt).toLocaleDateString(),
-        description: god.description || '',
-        isActive: god.isActive,
-        _id: god._id
-      })) || [];
-      
-      setGods(transformedGods);
-    } else {
-      setError(result.message || 'Failed to load gods');
-    }
-    
-    setLoading(false);
-  };
+    // Form state
+    const [form, setForm] = useState({
+        name: '',
+        description: '',
+        image: null,      // { file, preview, url }
+        idleVideo: null,  // { file, preview, url }
+        animations: []    // Array of { categoryId, file, preview, url, _id }
+    });
 
-  // Handle new file upload to Cloudinary
-  const handleFileUpload = async (e) => {
-    const files = Array.from(e.target.files);
-    
-    // Process each file
-    for (const file of files) {
-      // Validate file
-      if (!file.type.startsWith('image/')) {
-        setError('Please select only image files (JPG, PNG, GIF, WebP)');
-        continue;
-      }
-      
-      if (file.size > 10 * 1024 * 1024) { // 10MB limit
-        setError(`File ${file.name} is too large (max 10MB)`);
-        continue;
-      }
+    useEffect(() => {
+        fetchInitialData();
+    }, []);
 
-      // Create local preview immediately
-      const newImage = {
-        id: Date.now() + Math.random(),
-        name: file.name.replace(/\.[^/.]+$/, ""), // Remove extension
-        preview: URL.createObjectURL(file),
-        size: (file.size / (1024 * 1024)).toFixed(1) + ' MB',
-        uploaded: new Date().toLocaleDateString(),
-        file: file,
-        uploading: true
-      };
-      
-      setNewImages(prev => [...prev, newImage]);
-      
-      // Upload to Cloudinary
-      await uploadToCloudinary(newImage);
-    }
-  };
-
-  // Upload single image to Cloudinary
-  const uploadToCloudinary = async (image) => {
-    setUploading(true);
-    setError('');
-    
-    // Simulate progress for better UX
-    const progressInterval = setInterval(() => {
-      setUploadProgress(prev => {
-        if (prev >= 90) {
-          clearInterval(progressInterval);
-          return prev;
+    useEffect(() => {
+        if (error || success) {
+            const timer = setTimeout(() => {
+                setError('');
+                setSuccess('');
+            }, 5000);
+            return () => clearTimeout(timer);
         }
-        return prev + 10;
-      });
-    }, 200);
+    }, [error, success]);
 
-    try {
-      // Upload to Cloudinary
-      const uploadResult = await godAPI.uploadToCloudinary(image.file);
-      
-      clearInterval(progressInterval);
-      setUploadProgress(100);
-      
-      if (!uploadResult.success) {
-        throw new Error(uploadResult.message);
-      }
-      
-      // Update the image with Cloudinary URL
-      setNewImages(prev => prev.map(img => 
-        img.id === image.id 
-          ? { 
-              ...img, 
-              preview: uploadResult.data.url, 
-              uploading: false,
-              cloudinaryUrl: uploadResult.data.url
+    const fetchInitialData = async (page = 1) => {
+        setLoading(true);
+        try {
+            const [godRes, catRes] = await Promise.all([
+                godAPI.getAllGods(page, 10, searchTerm),
+                animationCategoryAPI.getAllCategories()
+            ]);
+            
+            if (godRes.success) {
+                setGods(godRes.data.gods || []);
+                if (godRes.data.pagination) {
+                    setPagination(godRes.data.pagination);
+                }
             }
-          : img
-      ));
-      
-      // Reset progress after a delay
-      setTimeout(() => {
-        setUploadProgress(0);
-      }, 1000);
-      
-    } catch (err) {
-      clearInterval(progressInterval);
-      setError(err.message || 'Failed to upload image to Cloudinary');
-      // Remove the failed upload from images
-      setNewImages(prev => prev.filter(img => img.id !== image.id));
-    } finally {
-      setUploading(false);
-    }
-  };
-
-  // Start editing a god
-  const startEdit = (god) => {
-    setEditingGod(god.id);
-    setFormData({
-      name: god.name,
-      description: god.description || ''
-    });
-    setNewImageFile(null);
-  };
-
-  // Handle edit file change
-  const handleEditFileChange = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    
-    // Validate file
-    if (!file.type.startsWith('image/')) {
-      setError('Please select an image file');
-      return;
-    }
-    
-    if (file.size > 10 * 1024 * 1024) {
-      setError('Image size must be less than 10MB');
-      return;
-    }
-    
-    setNewImageFile({
-      file: file,
-      preview: URL.createObjectURL(file)
-    });
-  };
-
-  // Save edited god
-  const saveEdit = async () => {
-    if (!formData.name.trim()) {
-      setError('God name is required');
-      return;
-    }
-
-    setLoading(true);
-    setError('');
-
-    try {
-      const updateData = {
-        name: formData.name,
-        description: formData.description
-      };
-
-      // If new image is selected, upload it first
-      if (newImageFile) {
-        const uploadResult = await godAPI.uploadToCloudinary(newImageFile.file);
-        
-        if (!uploadResult.success) {
-          throw new Error('Failed to upload new image');
+            if (catRes.success) setCategories(catRes.data?.categories || catRes.data || []);
+        } catch (err) {
+            setError('Failed to fetch data');
+        } finally {
+            setLoading(false);
         }
-        
-        updateData.image = uploadResult.data.url;
-      }
+    };
 
-      const result = await godAPI.updateGod(editingGod, updateData);
-      
-      if (result.success) {
-        // Update local state
-        setGods(prev => prev.map(god => {
-          if (god.id === editingGod) {
-            return {
-              ...god,
-              name: result.data.name,
-              preview: newImageFile ? result.data.image : god.preview,
-              description: result.data.description || '',
-              uploaded: new Date().toLocaleDateString()
-            };
-          }
-          return god;
-        }));
-        
-        // Clean up old preview URL if new image was uploaded
-        if (newImageFile?.preview) {
-          URL.revokeObjectURL(newImageFile.preview);
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            fetchInitialData(1);
+        }, 500);
+        return () => clearTimeout(timer);
+    }, [searchTerm]);
+
+    const handleToggleStatus = async (id, currentStatus) => {
+        setActionLoading(true);
+        try {
+            const result = await godAPI.updateGod(id, { isActive: !currentStatus });
+            if (result.success) {
+                setGods(prev => prev.map(g => g._id === id ? { ...g, isActive: !currentStatus } : g));
+                setSuccess(`Deity ${!currentStatus ? 'published' : 'unpublished'} successfully`);
+            }
+        } catch (err) {
+            setError('Status toggle failed');
+        } finally {
+            setActionLoading(false);
+            setActiveActionMenu(null);
         }
-        
-        setEditingGod(null);
-        setFormData({ name: '', description: '' });
-        setNewImageFile(null);
-        setSuccess('God updated successfully!');
-        
-        // Refresh from server
-        fetchGods();
-      } else {
-        setError(result.message || 'Failed to update god');
-      }
-    } catch (err) {
-      setError(err.message || 'Failed to save changes');
-    } finally {
-      setLoading(false);
-    }
-  };
+    };
 
-  // Cancel edit
-  const cancelEdit = () => {
-    if (newImageFile?.preview) {
-      URL.revokeObjectURL(newImageFile.preview);
-    }
-    setEditingGod(null);
-    setFormData({ name: '', description: '' });
-    setNewImageFile(null);
-  };
-
-  // Save single new god
-  const saveGod = async (image) => {
-    if (!image.cloudinaryUrl) {
-      setError('Image must be uploaded to Cloudinary first');
-      return;
-    }
-
-    setLoading(true);
-    setError('');
-
-    try {
-      const godData = {
-        name: image.name,
-        image: image.cloudinaryUrl,
-        description: ''
-      };
-
-      const result = await godAPI.createGod(godData);
-      
-      if (result.success) {
-        // Add to gods list
-        const newGod = {
-          id: result.data._id,
-          name: result.data.name,
-          preview: result.data.image,
-          size: image.size,
-          uploaded: new Date(result.data.createdAt).toLocaleDateString(),
-          description: result.data.description || '',
-          isActive: result.data.isActive,
-          _id: result.data._id
-        };
-        
-        setGods(prev => [...prev, newGod]);
-        setNewImages(prev => prev.filter(img => img.id !== image.id));
-        setSuccess('God saved successfully!');
-        
-        // Refresh from server
-        fetchGods();
-      } else {
-        setError(result.message || 'Failed to save god');
-      }
-    } catch (err) {
-      setError(err.message || 'Failed to save god');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Save all new gods
-  const saveAllGods = async () => {
-    if (newImages.length === 0) {
-      setError('No new gods to save');
-      return;
-    }
-
-    // Check if all images have been uploaded to Cloudinary
-    const imagesWithoutCloudinary = newImages.filter(img => !img.cloudinaryUrl && !img.uploading);
-    if (imagesWithoutCloudinary.length > 0) {
-      setError('Some images are not uploaded to Cloudinary yet. Please wait...');
-      return;
-    }
-
-    // Check if any images are still uploading
-    const stillUploading = newImages.some(img => img.uploading);
-    if (stillUploading) {
-      setError('Some images are still uploading. Please wait...');
-      return;
-    }
-
-    setLoading(true);
-    setError('');
-
-    try {
-      const savePromises = newImages.map(async (image) => {
-        const godData = {
-          name: image.name,
-          image: image.cloudinaryUrl,
-          description: ''
-        };
-
-        const result = await godAPI.createGod(godData);
-        
-        if (!result.success) {
-          throw new Error(`Failed to save ${image.name}: ${result.message}`);
+    const handleDeleteGod = async (id) => {
+        if (!window.confirm('Delete this Deity? All associated records will be lost.')) return;
+        setActionLoading(true);
+        try {
+            const result = await godAPI.deleteGod(id);
+            if (result.success) {
+                setGods(prev => prev.filter(g => g._id !== id));
+                setSuccess('Deity removed successfully');
+            }
+        } catch (err) {
+            setError('Deletion failed');
+        } finally {
+            setActionLoading(false);
+            setActiveActionMenu(null);
         }
+    };
+
+    const openAddModal = () => {
+        setEditingGodId(null);
+        setForm({
+            name: '',
+            description: '',
+            image: null,
+            idleVideo: null,
+            animations: []
+        });
+        setIsModalOpen(true);
+    };
+
+    const openEditModal = async (god) => {
+        setEditingGodId(god._id);
+        setActionLoading(true);
+        setActiveActionMenu(null);
         
-        return {
-          id: result.data._id,
-          name: result.data.name,
-          preview: result.data.image,
-          size: image.size,
-          uploaded: new Date(result.data.createdAt).toLocaleDateString(),
-          description: result.data.description || '',
-          isActive: result.data.isActive,
-          _id: result.data._id
-        };
-      });
-
-      const savedGods = await Promise.all(savePromises);
-      
-      // Add all saved gods to the list
-      setGods(prev => [...prev, ...savedGods]);
-      setNewImages([]);
-      setSuccess(`${savedGods.length} gods saved successfully!`);
-      
-      // Refresh from server
-      fetchGods();
-    } catch (err) {
-      setError(err.message || 'Failed to save gods');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Delete god
-  const deleteGod = async (id, isNew = false) => {
-    if (isNew) {
-      const imageToDelete = newImages.find(img => img.id === id);
-      if (imageToDelete?.preview?.startsWith('blob:')) {
-        URL.revokeObjectURL(imageToDelete.preview);
-      }
-      setNewImages(prev => prev.filter(img => img.id !== id));
-    } else {
-      if (!window.confirm('Are you sure you want to delete this god?')) {
-        return;
-      }
-
-      const godToDelete = gods.find(god => god.id === id);
-      if (!godToDelete) return;
-
-      setLoading(true);
-      setError('');
-
-      try {
-        const result = await godAPI.deleteGod(godToDelete._id);
-        
-        if (result.success) {
-          // Clean up preview URL
-          if (godToDelete?.preview?.startsWith('blob:')) {
-            URL.revokeObjectURL(godToDelete.preview);
-          }
-          
-          setGods(prev => prev.filter(god => god.id !== id));
-          setSuccess('God deleted successfully!');
-          
-          // Refresh from server
-          fetchGods();
-        } else {
-          setError(result.message || 'Failed to delete god');
-        }
-      } catch (err) {
-        setError('Failed to delete god');
-      } finally {
-        setLoading(false);
-      }
-    }
-  };
-
-  // Clear all gods
-  const clearAllGods = async () => {
-    if (gods.length === 0) {
-      setError('No gods to clear');
-      return;
-    }
-    
-    if (!window.confirm(`Are you sure you want to delete all ${gods.length} gods? This cannot be undone!`)) {
-      return;
-    }
-
-    setLoading(true);
-    setError('');
-
-    try {
-      // Delete all gods from database
-      const deletePromises = gods.map(god => godAPI.deleteGod(god._id));
-      await Promise.all(deletePromises);
-      
-      // Clean up preview URLs
-      gods.forEach(god => {
-        if (god?.preview?.startsWith('blob:')) {
-          URL.revokeObjectURL(god.preview);
-        }
-      });
-      
-      setGods([]);
-      setSuccess('All gods deleted successfully!');
-    } catch (err) {
-      setError('Failed to delete all gods');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Trigger file input
-  const triggerFileInput = () => {
-    fileInputRef.current?.click();
-  };
-
-  // Format date for display
-  const formatDate = (dateString) => {
-    if (!dateString) return 'Unknown date';
-    try {
-      const date = new Date(dateString);
-      return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    } catch (e) {
-      return 'Invalid date';
-    }
-  };
-
-  return (
-    <div className="p-6">
-      {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-800 mb-2">Gods Images Management</h1>
-        <p className="text-gray-600">Upload, edit and manage gods images</p>
-      </div>
-
-      {/* Image View Modal - Exactly like SplashScreen */}
-      {viewImage && (
-        <div className="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50 p-4">
-          <div className="relative max-w-5xl w-full">
-            <button
-              onClick={() => setViewImage(null)}
-              className="absolute top-4 right-4 p-3 bg-white bg-opacity-20 hover:bg-opacity-30 text-white rounded-full z-10 transition-all"
-            >
-              <FaTimes size={24} />
-            </button>
-            <div className="bg-white rounded-lg overflow-hidden">
-              <div className="p-4 bg-gray-800 text-white">
-                <div className="flex items-center gap-2">
-                  <h3 className="text-lg font-semibold truncate">{viewImage.name || 'God Image'}</h3>
-                  {viewImage.data && viewImage.data.includes('cloudinary') && (
-                    <span className="px-2 py-1 bg-blue-500 text-white rounded-full text-xs">
-                      Cloudinary
-                    </span>
-                  )}
-                </div>
-                <div className="flex items-center gap-4 mt-1 text-sm">
-                  <span>{viewImage.size}</span>
-                  <span>•</span>
-                  <span>{formatDate(viewImage.uploaded)}</span>
-                </div>
-              </div>
-              <div className="flex justify-center items-center bg-gray-900 min-h-[60vh]">
-                <img
-                  src={viewImage.preview || viewImage.data || ''}
-                  alt={viewImage.name || 'God Image'}
-                  className="max-w-full max-h-[70vh] object-contain"
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Error and Success Messages */}
-      {error && (
-        <div className="mb-6 p-4 rounded-lg bg-red-50 border border-red-200 flex items-center">
-          <FaExclamationTriangle className="text-red-500 mr-3 flex-shrink-0" />
-          <div>
-            <p className="font-semibold text-red-700">Error!</p>
-            <p className="text-red-600 text-sm">{error}</p>
-          </div>
-          <button
-            onClick={() => setError('')}
-            className="ml-auto text-red-500 hover:text-red-700"
-          >
-            <FaTimes />
-          </button>
-        </div>
-      )}
-
-      {success && (
-        <div className="mb-6 p-4 rounded-lg bg-green-50 border border-green-200 flex items-center">
-          <FaCheckCircle className="text-green-500 mr-3 flex-shrink-0" />
-          <div>
-            <p className="font-semibold text-green-700">Success!</p>
-            <p className="text-green-600 text-sm">{success}</p>
-          </div>
-          <button
-            onClick={() => setSuccess('')}
-            className="ml-auto text-green-500 hover:text-green-700"
-          >
-            <FaTimes />
-          </button>
-        </div>
-      )}
-
-      {/* Upload Section */}
-      <div className="mb-10">
-        <div className="bg-white rounded-xl shadow-md p-6 mb-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-semibold text-gray-800">Upload New God Images</h2>
-            {newImages.length > 0 && (
-              <button
-                onClick={saveAllGods}
-                disabled={loading || newImages.some(img => img.uploading)}
-                className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {loading ? (
-                  <>
-                    <FaSpinner className="animate-spin w-4 h-4" />
-                    Saving...
-                  </>
-                ) : (
-                  <>
-                    <FaSave className="w-4 h-4" />
-                    Save All ({newImages.length})
-                  </>
-                )}
-              </button>
-            )}
-          </div>
-
-          {/* Upload Progress */}
-          {uploading && uploadProgress > 0 && (
-            <div className="mb-4 p-4 bg-blue-50 rounded-lg">
-              <div className="w-full bg-gray-200 rounded-full h-2">
-                <div 
-                  className="bg-blue-500 h-2 rounded-full transition-all duration-300"
-                  style={{ width: `${uploadProgress}%` }}
-                ></div>
-              </div>
-              <p className="text-sm text-gray-600 mt-2 text-center">
-                Uploading to Cloudinary... {uploadProgress}%
-              </p>
-            </div>
-          )}
-
-          {/* Upload Box */}
-          <div
-            className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center cursor-pointer hover:border-blue-500 transition-colors"
-            onClick={triggerFileInput}
-          >
-            <div className="flex flex-col items-center gap-4">
-              <div className="w-16 h-16 rounded-full bg-blue-100 flex items-center justify-center">
-                <FaUpload className="w-8 h-8 text-blue-500" />
-              </div>
-              <div>
-                <h3 className="text-lg font-medium text-gray-800 mb-2">
-                  Click to upload god images
-                </h3>
-                <p className="text-gray-500 mb-4">
-                  Drag & drop or click to select files
-                </p>
-                <button 
-                  className="px-5 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50"
-                  disabled={uploading}
-                >
-                  {uploading ? 'Uploading...' : 'Browse Files'}
-                </button>
-              </div>
-            </div>
-            <input
-              ref={fileInputRef}
-              type="file"
-              multiple
-              accept="image/*"
-              onChange={handleFileUpload}
-              className="hidden"
-              disabled={uploading}
-            />
-          </div>
-
-          {/* New Uploads Preview */}
-          {newImages.length > 0 && (
-            <div className="mt-8">
-              <h3 className="text-lg font-medium text-gray-700 mb-4">
-                New Uploads ({newImages.length})
-              </h3>
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                {newImages.map((image) => (
-                  <div key={image.id} className="border border-gray-200 rounded-lg overflow-hidden">
-                    {/* Image with Eye Button */}
-                    <div className="relative h-40">
-                      <img
-                        src={image.preview}
-                        alt={image.name}
-                        className="w-full h-full object-cover cursor-pointer"
-                        onClick={() => setViewImage(image)}
-                      />
-                      
-                      {/* Uploading Overlay */}
-                      {image.uploading && (
-                        <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
-                          <FaSpinner className="animate-spin text-white text-xl" />
-                        </div>
-                      )}
-                      
-                      {/* Action Buttons - Same pattern as SplashScreen */}
-                      <div className="absolute top-2 right-2 flex gap-1">
-                        <button
-                          onClick={() => setViewImage(image)}
-                          className="p-2 bg-white rounded-full shadow hover:bg-gray-100 transition-colors"
-                          title="View Image"
-                        >
-                          <FaEye size={12} />
-                        </button>
-                        <button
-                          onClick={() => deleteGod(image.id, true)}
-                          className="p-2 bg-white rounded-full shadow hover:bg-gray-100 transition-colors"
-                          title="Remove"
-                          disabled={image.uploading}
-                        >
-                          <FaTimes size={12} className="text-red-500" />
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Info */}
-                    <div className="p-3">
-                      <p className="font-medium text-gray-800 truncate text-sm">
-                        {image.name}
-                      </p>
-                      <p className="text-xs text-gray-500 mt-1">
-                        {image.size} • {image.uploaded}
-                      </p>
-                      {image.uploading && (
-                        <p className="text-xs text-blue-500 mt-1 flex items-center">
-                          <FaSpinner className="animate-spin mr-1" size={10} />
-                          Uploading...
-                        </p>
-                      )}
-                      {image.cloudinaryUrl && !image.uploading && (
-                        <p className="text-xs text-green-500 mt-1">
-                          ✓ Ready to save
-                        </p>
-                      )}
-                      
-                      {/* Save Button */}
-                      <button
-                        onClick={() => saveGod(image)}
-                        disabled={image.uploading || !image.cloudinaryUrl}
-                        className="mt-3 w-full py-1 text-sm border border-green-500 text-green-500 rounded hover:bg-green-50 transition-colors flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
-                        title="Save God"
-                      >
-                        <FaSave className="mr-2" size={12} />
-                        {image.uploading ? 'Uploading...' : 'Save God'}
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Saved Gods Section */}
-      <div className="bg-white rounded-xl shadow-md p-6">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-semibold text-gray-800">
-            Saved Gods ({gods.length})
-          </h2>
-          {gods.length > 0 && (
-            <button
-              onClick={clearAllGods}
-              disabled={loading}
-              className="flex items-center gap-2 px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg disabled:opacity-50"
-            >
-              {loading ? (
-                <FaSpinner className="animate-spin w-4 h-4" />
-              ) : (
-                <FaTrash className="w-4 h-4" />
-              )}
-              Clear All
-            </button>
-          )}
-        </div>
-
-        {loading && gods.length === 0 ? (
-          <div className="text-center py-12">
-            <FaSpinner className="animate-spin w-8 h-8 text-blue-500 mx-auto mb-4" />
-            <p className="text-gray-500">Loading gods...</p>
-          </div>
-        ) : gods.length === 0 ? (
-          <div className="text-center py-12">
-            <FaImage className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-            <p className="text-gray-500">No saved gods yet</p>
-            <p className="text-gray-400 text-sm mt-2">Upload and save god images to see them here</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {gods.map((god) => (
-              <div key={god.id} className="border border-gray-200 rounded-lg overflow-hidden">
+        try {
+            const idolRes = await godIdolAPI.getGodIdolByGodId(god._id);
+            let idleVideo = null;
+            let animations = [];
+            
+            if (idolRes.success && idolRes.data) {
+                const idol = idolRes.data;
+                idleVideo = { 
+                    url: idol.video?.url, 
+                    preview: idol.video?.signedUrl || idol.video?.url,
+                    _id: idol._id 
+                };
                 
-                {/* Editing Mode */}
-                {editingGod === god.id ? (
-                  <>
-                    {/* Image Preview in Edit Mode */}
-                    <div className="relative h-64">
-                      <img
-                        src={newImageFile?.preview || god.preview}
-                        alt={formData.name}
-                        className="w-full h-full object-cover cursor-pointer"
-                        onClick={() => setViewImage({
-                          name: formData.name,
-                          preview: newImageFile?.preview || god.preview,
-                          size: '2.4 MB',
-                          uploaded: new Date().toISOString(),
-                          data: newImageFile?.preview || god.preview
-                        })}
-                      />
-                      <div className="absolute top-3 right-3 flex gap-2">
-                        <button
-                          onClick={() => setViewImage({
-                            name: formData.name,
-                            preview: newImageFile?.preview || god.preview,
-                            size: '2.4 MB',
-                            uploaded: new Date().toISOString(),
-                            data: newImageFile?.preview || god.preview
-                          })}
-                          className="p-3 bg-white rounded-full shadow-lg hover:bg-gray-100 transition-all"
-                          title="View Image"
-                        >
-                          <FaEye className="w-5 h-5 text-blue-500" />
-                        </button>
-                        <button
-                          onClick={() => editFileInputRef.current?.click()}
-                          className="px-4 py-2 bg-blue-500 text-white text-sm rounded-lg hover:bg-blue-600"
-                          disabled={loading}
-                        >
-                          Change Image
-                        </button>
-                        <input
-                          ref={editFileInputRef}
-                          type="file"
-                          accept="image/*"
-                          onChange={handleEditFileChange}
-                          className="hidden"
-                          disabled={loading}
-                        />
-                      </div>
-                    </div>
+                const animRes = await animationAPI.getAnimationsByGodIdol(idol._id);
+                if (animRes.success) {
+                    animations = animRes.data.map(a => ({
+                        categoryId: a.category,
+                        url: a.video?.url,
+                        preview: a.video?.signedUrl || a.video?.url,
+                        _id: a._id
+                    }));
+                }
+            }
 
-                    {/* Edit Form */}
-                    <div className="p-5">
-                      <div className="mb-4">
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          God Name *
-                        </label>
-                        <input
-                          type="text"
-                          value={formData.name}
-                          onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                          className="w-full px-4 py-3 border border-gray-300 rounded-lg text-base"
-                          placeholder="Enter god name"
-                          disabled={loading}
-                        />
-                      </div>
-                      <div className="mb-4">
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Description (Optional)
-                        </label>
-                        <textarea
-                          value={formData.description}
-                          onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                          className="w-full px-4 py-3 border border-gray-300 rounded-lg text-base"
-                          placeholder="Enter description"
-                          rows="2"
-                          disabled={loading}
-                        />
-                      </div>
-                      <div className="flex justify-center gap-3">
-                        <button
-                          onClick={saveEdit}
-                          disabled={loading || !formData.name.trim()}
-                          className="flex items-center justify-center gap-2 px-2 py-1 bg-green-500 text-white rounded-lg hover:bg-green-600 text-base text-nowrap disabled:opacity-50"
-                        >
-                          {loading ? (
-                            <FaSpinner className="animate-spin w-4 h-4" />
-                          ) : (
-                            <FaCheck className="w-4 h-4" />
-                          )}
-                          Save Changes
-                        </button>
-                        <button
-                          onClick={cancelEdit}
-                          disabled={loading}
-                          className="px-2 py-1 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 text-base disabled:opacity-50"
-                        >
-                          Cancel
-                        </button>
-                      </div>
+            setForm({
+                name: god.name,
+                description: god.description || '',
+                image: { url: god.image, preview: god.image },
+                idleVideo,
+                animations
+            });
+            setIsModalOpen(true);
+        } catch (err) {
+            setError('Failed to load details');
+        } finally {
+            setActionLoading(false);
+        }
+    };
+
+    const handleFileSelect = (e, target, categoryId = null) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const preview = URL.createObjectURL(file);
+        
+        if (target === 'icon') {
+            setForm(prev => ({ ...prev, image: { file, preview } }));
+        } else if (target === 'idle') {
+            setForm(prev => ({ ...prev, idleVideo: { file, preview } }));
+        } else if (target === 'extra') {
+            const idx = form.animations.findIndex(a => a.categoryId === categoryId);
+            if (idx > -1) {
+                const newAnims = [...form.animations];
+                newAnims[idx] = { ...newAnims[idx], file, preview };
+                setForm(prev => ({ ...prev, animations: newAnims }));
+            } else {
+                setForm(prev => ({ 
+                    ...prev, 
+                    animations: [...prev.animations, { categoryId, file, preview }] 
+                }));
+            }
+        }
+    };
+
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        if (!form.name || !form.image || !form.idleVideo) {
+            setError('Name, Icon, and Idle Video are strictly mandatory');
+            return;
+        }
+
+        setActionLoading(true);
+        setError('');
+        
+        try {
+            let godId = editingGodId;
+            let imageUrl = form.image.url;
+            
+            if (form.image.file) {
+                const uploadRes = await godAPI.uploadToCloudinary(form.image.file);
+                if (uploadRes.success) imageUrl = uploadRes.data.url;
+                else throw new Error('Icon upload failed');
+            }
+
+            const godData = { name: form.name, description: form.description, image: imageUrl };
+            if (editingGodId) {
+                await godAPI.updateGod(editingGodId, godData);
+            } else {
+                const res = await godAPI.createGod(godData);
+                if (res.success) godId = res.data._id;
+                else throw new Error(res.message);
+            }
+
+            let godIdolId;
+            const idolFoundRes = await godIdolAPI.getGodIdolByGodId(godId);
+            const idolFormData = new FormData();
+            idolFormData.append('godId', godId);
+            if (form.idleVideo.file) idolFormData.append('video', form.idleVideo.file);
+
+            if (idolFoundRes.success && idolFoundRes.data) {
+                if (form.idleVideo.file) {
+                    const res = await godIdolAPI.updateGodIdol(idolFoundRes.data._id, idolFormData);
+                    godIdolId = res.data._id;
+                } else {
+                    godIdolId = idolFoundRes.data._id;
+                }
+            } else {
+                const res = await godIdolAPI.createGodIdol(idolFormData);
+                godIdolId = res.data._id;
+            }
+
+            for (const anim of form.animations) {
+                if (anim.file) {
+                    const animFormData = new FormData();
+                    animFormData.append('godIdol', godIdolId);
+                    animFormData.append('category', anim.categoryId);
+                    animFormData.append('video', anim.file);
+                    animFormData.append('title', categories.find(c => c._id === anim.categoryId)?.name || 'Animation');
+
+                    if (anim._id) await animationAPI.updateAnimation(anim._id, animFormData);
+                    else await animationAPI.createAnimation(animFormData);
+                }
+            }
+
+            setSuccess('Divine records updated successfully');
+            setIsModalOpen(false);
+            fetchInitialData(pagination.page);
+        } catch (err) {
+            setError(err.message || 'Workflow failed');
+        } finally {
+            setActionLoading(false);
+        }
+    };
+
+    const filteredGods = gods.filter(g => g.name.toLowerCase().includes(searchTerm.toLowerCase()));
+
+    if (loading && gods.length === 0) {
+        return <div className="p-20 text-center"><FaSpinner className="animate-spin text-4xl text-gray-900 mx-auto" /></div>;
+    }
+
+    return (
+        <div className="p-8 space-y-8 bg-gray-50/30 min-h-screen">
+            {/* Messages */}
+            {(error || success) && (
+                <div className="fixed top-24 right-8 z-[200] flex flex-col gap-3">
+                    {error && <div className="bg-red-600 text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-3 animate-in fade-in slide-in-from-right-4"><FaExclamationTriangle /> {error}</div>}
+                    {success && <div className="bg-green-600 text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-3 animate-in fade-in slide-in-from-right-4"><FaCheck /> {success}</div>}
+                </div>
+            )}
+
+            {/* Header */}
+            <div className="bg-white p-8 rounded-[40px] shadow-sm border border-gray-100 flex flex-col md:flex-row justify-between items-center gap-6">
+                <div className="flex-1">
+                    <h1 className="text-4xl font-black text-gray-900 tracking-tight italic">Gods Management</h1>
+                    <p className="text-gray-500 font-medium">Configure divine avatars and their sacred interactions.</p>
+                </div>
+                
+                <div className="flex items-center gap-4 w-full md:w-auto">
+                    <div className="relative flex-1 md:w-64">
+                         <FaSearch className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-300" />
+                         <input 
+                            type="text" 
+                            placeholder="Search Deities..." 
+                            value={searchTerm}
+                            onChange={e => setSearchTerm(e.target.value)}
+                            className="w-full pl-12 pr-6 py-4 bg-gray-50 rounded-2xl border-none outline-none font-bold text-sm focus:bg-white transition-all ring-2 ring-transparent focus:ring-blue-100"
+                         />
                     </div>
-                  </>
-                ) : (
-                  <>
-                    {/* View Mode */}
-                    <div className="relative h-64">
-                      <img
-                        src={god.preview}
-                        alt={god.name}
-                        className="w-full h-full object-cover cursor-pointer"
-                        onClick={() => setViewImage({
-                          name: god.name,
-                          preview: god.preview,
-                          size: god.size,
-                          uploaded: god.uploaded,
-                          data: god.preview,
-                          description: god.description
-                        })}
-                      />
-                      <div className="absolute top-3 right-3 flex gap-2">
-                        {/* Eye Button for Viewing - Same as SplashScreen */}
-                        <button
-                          onClick={() => setViewImage({
-                            name: god.name,
-                            preview: god.preview,
-                            size: god.size,
-                            uploaded: god.uploaded,
-                            data: god.preview,
-                            description: god.description
-                          })}
-                          className="p-3 bg-white rounded-full shadow-lg hover:bg-gray-100 transition-all"
-                          title="View Image"
-                        >
-                          <FaEye className="w-4 h-4 text-blue-500" />
-                        </button>
-                        <button
-                          onClick={() => startEdit(god)}
-                          className="p-3 bg-white rounded-full shadow-lg hover:bg-gray-100 transition-all"
-                          title="Edit"
-                        >
-                          <FaEdit className="w-4 h-4 text-blue-500" />
-                        </button>
-                        <button
-                          onClick={() => deleteGod(god.id, false)}
-                          className="p-3 bg-white rounded-full shadow-lg hover:bg-gray-100 transition-all"
-                          title="Delete"
-                        >
-                          <FaTrash className="w-4 h-4 text-red-500" />
-                        </button>
-                      </div>
+                    <button 
+                        onClick={openAddModal}
+                        className="px-8 py-4 bg-gray-900 text-white rounded-[24px] font-black uppercase text-[10px] tracking-widest hover:bg-black transition-all shadow-xl flex items-center gap-3"
+                    >
+                        <FaPlus /> Add New God
+                    </button>
+                </div>
+            </div>
+
+            {/* List View */}
+            <div className="bg-white rounded-[40px] shadow-sm border border-gray-100">
+                <table className="w-full text-left border-collapse">
+                    <thead>
+                        <tr className="bg-gray-50/50">
+                            <th className="p-6 text-[10px] font-black uppercase text-gray-400 tracking-widest pl-10 underline decoration-blue-500/30">Icon</th>
+                            <th className="p-6 text-[10px] font-black uppercase text-gray-400 tracking-widest">Divine Name</th>
+                            <th className="p-6 text-[10px] font-black uppercase text-gray-400 tracking-widest">Manifested At</th>
+                            <th className="p-6 text-[10px] font-black uppercase text-gray-400 tracking-widest">Status</th>
+                            <th className="p-6 text-[10px] font-black uppercase text-gray-400 tracking-widest text-right pr-10">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-50">
+                        {filteredGods.map(god => (
+                            <tr key={god._id} className="group hover:bg-gray-50/50 transition-all">
+                                <td className="p-6 pl-10">
+                                    <div className="w-16 h-16 rounded-3xl overflow-hidden bg-gray-100 border-2 border-white shadow-md group-hover:scale-110 transition-transform">
+                                        <img src={god.image} alt="" className="w-full h-full object-cover" />
+                                    </div>
+                                </td>
+                                <td className="p-6">
+                                    <p className="font-black text-gray-900 italic text-lg">{god.name}</p>
+                                    <p className="text-xs text-gray-400 font-medium truncate max-w-[200px]">{god.description || 'No sacred description provided.'}</p>
+                                </td>
+                                <td className="p-6 text-sm font-bold text-gray-400 italic">
+                                    {new Date(god.createdAt).toLocaleDateString()}
+                                </td>
+                                <td className="p-6">
+                                    <span className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest inline-block ${god.isActive ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-400'}`}>
+                                        {god.isActive ? 'Published' : 'Unpublished'}
+                                    </span>
+                                </td>
+                                <td className="p-6 text-right pr-10 relative">
+                                    <button 
+                                        onClick={() => setActiveActionMenu(activeActionMenu === god._id ? null : god._id)}
+                                        className="p-4 hover:bg-white hover:shadow-lg rounded-2xl transition-all"
+                                    >
+                                        <FaEllipsisV className="text-gray-400" />
+                                    </button>
+                                    
+                                    {activeActionMenu === god._id && (
+                                        <div className="absolute right-10 top-[70%] bg-white rounded-3xl shadow-2xl border border-gray-100 py-3 w-48 z-10 animate-in zoom-in-95">
+                                            <button onClick={() => openEditModal(god)} className="w-full px-6 py-3 text-left flex items-center gap-3 text-sm font-bold text-gray-700 hover:bg-gray-50 transition-all">
+                                                <FaEdit className="text-blue-500" /> Edit Specs
+                                            </button>
+                                            <button onClick={() => handleToggleStatus(god._id, god.isActive)} className="w-full px-6 py-3 text-left flex items-center gap-3 text-sm font-bold text-gray-700 hover:bg-gray-50 transition-all">
+                                                <div className={`w-10 h-5 rounded-full relative transition-all ${god.isActive ? 'bg-green-500' : 'bg-gray-300'}`}>
+                                                    <div className={`absolute top-1 left-1 w-3 h-3 bg-white rounded-full transition-all ${god.isActive ? 'translate-x-5' : 'translate-x-0'}`} />
+                                                </div>
+                                                Publish
+                                            </button>
+                                            <div className="my-2 border-t border-gray-50" />
+                                            <button onClick={() => handleDeleteGod(god._id)} className="w-full px-6 py-3 text-left flex items-center gap-3 text-sm font-bold text-red-500 hover:bg-red-50 transition-all">
+                                                <FaTrash /> Delete
+                                            </button>
+                                        </div>
+                                    )}
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+                {filteredGods.length === 0 && (
+                    <div className="p-20 text-center flex flex-col items-center gap-4">
+                        <FaSearch size={40} className="text-gray-200" />
+                        <p className="text-gray-400 font-bold italic">No divine avatars found matching your query.</p>
                     </div>
-                    
-                    {/* Info */}
-                    <div className="p-5">
-                      <h4 className="font-semibold text-gray-800 text-lg mb-2">{god.name}</h4>
-                      {god.description && (
-                        <p className="text-sm text-gray-600 mb-3 line-clamp-2">
-                          {god.description}
-                        </p>
-                      )}
-                      <div className="flex items-center justify-between">
-                        <p className="text-sm text-gray-500">
-                          {god.size}
-                        </p>
-                        <p className="text-sm text-gray-500">
-                          {god.uploaded}
-                        </p>
-                      </div>
-                    </div>
-                  </>
                 )}
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
-  );
+
+                {/* Pagination UI */}
+                {pagination.pages > 1 && (
+                    <div className="p-8 border-t border-gray-50 flex justify-between items-center bg-gray-50/10">
+                        <p className="text-[10px] font-black uppercase text-gray-400 tracking-widest">
+                            Showing <span className="text-gray-900">{gods.length}</span> of <span className="text-gray-900">{pagination.total}</span> Divine Avatars
+                        </p>
+                        <div className="flex gap-3">
+                            <button 
+                                disabled={pagination.page === 1 || loading}
+                                onClick={() => fetchInitialData(pagination.page - 1)}
+                                className="w-12 h-12 rounded-2xl bg-white border border-gray-100 flex items-center justify-center text-gray-400 hover:text-gray-900 hover:shadow-lg transition-all disabled:opacity-30 disabled:hover:shadow-none"
+                            >
+                                <FaArrowLeft size={14} />
+                            </button>
+                            
+                            {[...Array(pagination.pages)].map((_, i) => (
+                                <button
+                                    key={i + 1}
+                                    onClick={() => fetchInitialData(i + 1)}
+                                    className={`w-12 h-12 rounded-2xl font-black text-sm transition-all ${
+                                        pagination.page === i + 1 
+                                        ? 'bg-gray-900 text-white shadow-xl scale-110' 
+                                        : 'bg-white text-gray-400 border border-gray-100 hover:border-gray-900 hover:text-gray-900'
+                                    }`}
+                                >
+                                    {i + 1}
+                                </button>
+                            ))}
+
+                            <button 
+                                disabled={pagination.page === pagination.pages || loading}
+                                onClick={() => fetchInitialData(pagination.page + 1)}
+                                className="w-12 h-12 rounded-2xl bg-white border border-gray-100 flex items-center justify-center text-gray-400 hover:text-gray-900 hover:shadow-lg transition-all disabled:opacity-30 disabled:hover:shadow-none"
+                            >
+                                <FaArrowRight size={14} />
+                            </button>
+                        </div>
+                    </div>
+                )}
+            </div>
+
+            {/* Creation/Edit Modal */}
+            {isModalOpen && (
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-[201] flex items-center justify-center p-4">
+                    <div className="bg-white rounded-[60px] shadow-2xl w-full max-w-6xl max-h-[90vh] overflow-y-auto relative animate-in zoom-in-95 duration-500">
+                        <div className="sticky top-0 bg-white/80 backdrop-blur-xl px-12 py-8 border-b border-gray-50 flex justify-between items-center z-10">
+                            <h2 className="text-3xl font-black text-gray-900 italic uppercase tracking-tight">{editingGodId ? 'Edit Configuration' : 'Manifest New Avatar'}</h2>
+                            <button onClick={() => setIsModalOpen(false)} className="p-5 hover:bg-gray-100 rounded-3xl transition-all"><FaTimes/></button>
+                        </div>
+
+                        <form onSubmit={handleSubmit} className="p-12 space-y-16">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-20">
+                                {/* Details & Icon */}
+                                <div className="space-y-10">
+                                    <div className="space-y-4">
+                                        <label className="text-[10px] font-black uppercase text-blue-500 tracking-[0.2em] ml-1">Avatar Identity *</label>
+                                        <input required type="text" value={form.name} onChange={e => setForm({...form, name: e.target.value})} className="w-full p-6 rounded-[32px] bg-gray-50/50 border-none outline-none font-black italic text-xl focus:bg-white ring-2 ring-transparent focus:ring-blue-100 transition-all" placeholder="Enter Name..."/>
+                                    </div>
+                                    <div className="space-y-4">
+                                        <label className="text-[10px] font-black uppercase text-blue-500 tracking-[0.2em] ml-1">Spiritual Essence</label>
+                                        <textarea value={form.description} onChange={e => setForm({...form, description: e.target.value})} className="w-full p-6 rounded-[32px] bg-gray-50/50 border-none outline-none font-bold min-h-[160px] focus:bg-white ring-2 ring-transparent focus:ring-blue-100 transition-all" placeholder="Describe the divinity..."/>
+                                    </div>
+                                    <div className="space-y-4">
+                                        <label className="text-[10px] font-black uppercase text-blue-500 tracking-[0.2em] ml-1">Avatar Icon *</label>
+                                        <div className="relative group aspect-square rounded-[64px] border-4 border-dashed border-gray-100 hover:border-blue-100 bg-gray-50/50 flex items-center justify-center overflow-hidden transition-all">
+                                            {form.image ? (
+                                                <>
+                                                    <img src={form.image.preview} className="w-full h-full object-cover" />
+                                                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-all">
+                                                        <label className="bg-white px-8 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-2xl cursor-pointer hover:scale-105 transition-all">Update Symbol</label>
+                                                    </div>
+                                                </>
+                                            ) : (
+                                                <div className="flex flex-col items-center gap-4 text-gray-300">
+                                                    <FaImage size={48} />
+                                                    <span className="text-[10px] font-black uppercase tracking-widest">Select Iconic Symbol</span>
+                                                </div>
+                                            )}
+                                            <input type="file" accept="image/*" className="absolute inset-0 opacity-0 cursor-pointer" onChange={e => handleFileSelect(e, 'icon')} />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Videos */}
+                                <div className="space-y-12">
+                                    <div className="space-y-6">
+                                        <div className="flex items-center gap-3 text-orange-500">
+                                            <FaVideo /> <h3 className="text-xl font-black italic uppercase">Idle Presence *</h3>
+                                        </div>
+                                        <div className="aspect-video rounded-[40px] bg-black overflow-hidden relative group border-4 border-white shadow-2xl">
+                                            {form.idleVideo ? (
+                                                <>
+                                                    <video src={form.idleVideo.preview} autoPlay loop muted className="w-full h-full object-cover opacity-80" />
+                                                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center gap-4 transition-all">
+                                                        <button type="button" onClick={() => setViewVideo(form.idleVideo.preview)} className="p-5 bg-white/20 backdrop-blur-xl rounded-full text-white hover:bg-white/40"><FaPlay/></button>
+                                                        <label className="bg-white px-6 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest cursor-pointer hover:scale-105">Replace</label>
+                                                    </div>
+                                                </>
+                                            ) : (
+                                                <div className="w-full h-full flex flex-col items-center justify-center text-gray-700 bg-gray-50/50 gap-4">
+                                                    <FaFilm size={40} className="text-gray-200" />
+                                                    <label className="px-8 py-3 bg-gray-900 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest cursor-pointer shadow-xl">Choose Idle Video</label>
+                                                </div>
+                                            )}
+                                            <input type="file" accept="video/*" className="absolute inset-0 opacity-0 cursor-pointer" onChange={e => handleFileSelect(e, 'idle')} />
+                                        </div>
+                                    </div>
+
+                                    <div className="space-y-8">
+                                        <div className="flex justify-between items-center text-purple-600">
+                                            <div className="flex items-center gap-3"><FaMagic /> <h3 className="text-xl font-black italic uppercase">Interactions (Up to 6)</h3></div>
+                                            <span className="text-[10px] font-black bg-purple-50 px-4 py-1.5 rounded-full">{form.animations.length} / 6 Loaded</span>
+                                        </div>
+                                        
+                                        <div className="space-y-4">
+                                            {form.animations.map((anim, i) => {
+                                                const cat = categories.find(c => c._id === anim.categoryId);
+                                                return (
+                                                    <div key={i} className="flex items-center gap-5 bg-gray-50/50 p-6 rounded-[32px] group hover:bg-white hover:shadow-xl transition-all border border-transparent hover:border-purple-100">
+                                                        <div className="w-14 h-14 rounded-2xl bg-white flex items-center justify-center shadow-sm overflow-hidden">
+                                                            {cat?.icon ? <img src={cat.icon} className="w-full h-full object-cover" alt={cat?.name} /> : <FaVideo className="text-gray-300 text-xl" />}
+                                                        </div>
+                                                        <div className="flex-1">
+                                                            <p className="font-black text-gray-900 italic">{cat?.name || 'Unknown Type'}</p>
+                                                            <p className="text-[9px] font-black text-green-500 uppercase tracking-widest">Asset Ready</p>
+                                                        </div>
+                                                        <div className="flex gap-2">
+                                                            <button type="button" onClick={() => setViewVideo(anim.preview)} className="p-4 bg-white text-blue-500 rounded-2xl hover:bg-blue-50 transition-all shadow-sm"><FaEye/></button>
+                                                            <button type="button" onClick={() => setForm(prev => ({ ...prev, animations: prev.animations.filter((_, idx) => idx !== i) }))} className="p-4 bg-white text-red-500 rounded-2xl hover:bg-red-50 transition-all shadow-sm"><FaTrash/></button>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+
+                                            {form.animations.length < 6 && (
+                                                <div className="relative group">
+                                                    <select 
+                                                        className="w-full p-6 appearance-none bg-gray-50 border-2 border-dashed border-gray-100 rounded-[32px] font-black text-[10px] uppercase tracking-widest text-gray-400 outline-none cursor-pointer group-hover:bg-white group-hover:border-purple-200 transition-all"
+                                                        value=""
+                                                        onChange={(e) => {
+                                                            const catId = e.target.value;
+                                                            if (!catId) return;
+                                                            const input = document.createElement('input');
+                                                            input.type = 'file';
+                                                            input.accept = 'video/*';
+                                                            input.onchange = (ev) => handleFileSelect(ev, 'extra', catId);
+                                                            input.click();
+                                                        }}
+                                                    >
+                                                        <option value="">+ Register Spiritual Interaction</option>
+                                                        {categories.map(c => (
+                                                            <option key={c._id} value={c._id} disabled={form.animations.some(a => a.categoryId === c._id)}>{c.name}</option>
+                                                        ))}
+                                                    </select>
+                                                    <FaChevronRight className="absolute right-8 top-1/2 -translate-y-1/2 text-gray-300 pointer-events-none group-hover:text-purple-500 transition-all" />
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="flex gap-5 pt-10 sticky bottom-0 bg-white/20 backdrop-blur-md py-6 rounded-b-[40px]">
+                                <button 
+                                    type="submit" 
+                                    disabled={actionLoading}
+                                    className="flex-1 py-7 bg-gray-900 text-white rounded-[40px] font-black uppercase text-xs tracking-widest hover:bg-black transition-all shadow-2xl shadow-blue-100 disabled:opacity-50"
+                                >
+                                    {actionLoading ? <FaSpinner className="animate-spin text-lg mx-auto" /> : 'Confirm Sacred Records'}
+                                </button>
+                                <button 
+                                    type="button" 
+                                    onClick={() => setIsModalOpen(false)} 
+                                    className="px-14 py-7 bg-gray-100 text-gray-400 rounded-[40px] font-black uppercase text-xs tracking-widest hover:bg-gray-200 transition-all"
+                                >
+                                    Discard
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Video Preview */}
+            {viewVideo && (
+                <div className="fixed inset-0 bg-black/95 z-[300] flex items-center justify-center p-8 overflow-hidden animate-in fade-in duration-300" onClick={() => setViewVideo(null)}>
+                    <div className="relative w-full max-w-7xl aspect-video rounded-[60px] overflow-hidden shadow-2xl bg-black" onClick={e => e.stopPropagation()}>
+                        <video src={viewVideo} controls autoPlay className="w-full h-full object-contain" />
+                        <button onClick={() => setViewVideo(null)} className="absolute top-10 right-10 p-5 bg-white/10 backdrop-blur-2xl text-white rounded-full hover:bg-white/20 transition-all"><FaTimes/></button>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
 };
 
-export default Gods;
+export default GodsManagement;

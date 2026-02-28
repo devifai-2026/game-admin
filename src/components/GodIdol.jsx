@@ -5,6 +5,8 @@ import {
 } from 'react-icons/fa'
 import godAPI from '../apis/god.api'
 import godIdolAPI from '../apis/godIdol.api'
+import animationCategoryAPI from '../apis/animationCategory.api'
+import animationAPI from '../apis/animation.api'
 
 const formatDate = (dateString) => {
   if (!dateString) return 'Unknown date'
@@ -115,6 +117,14 @@ const GodIdol = () => {
   const [editFile, setEditFile] = useState(null)
   const editFileInputRef = useRef(null)
 
+  // Animation states
+  const [animations, setAnimations] = useState([])
+  const [isAnimationModalOpen, setIsAnimationModalOpen] = useState(false)
+  const [selectedGodForAnim, setSelectedGodForAnim] = useState(null)
+  const [animForm, setAnimForm] = useState({ categoryId: '', video: null })
+  const [animCategories, setAnimCategories] = useState([])
+  const [animLoading, setAnimLoading] = useState(false)
+
   useEffect(() => {
     fetchInitialData()
   }, [])
@@ -127,14 +137,22 @@ const GodIdol = () => {
     setLoading(true)
     setError('')
     try {
-      const godsResult = await godAPI.getAllGods(1, 100) // Get all gods
+      const godsResult = await godAPI.getAllGods(1, 100)
       const idolsResult = await godIdolAPI.getAllGodIdols()
+      const animCatsResult = await animationCategoryAPI.getAllCategories()
+      const animsResult = await animationAPI.getAllAnimations()
 
       if (godsResult.success) {
         setGods(godsResult.data.gods || [])
       }
       if (idolsResult.success) {
         setIdols(idolsResult.data || [])
+      }
+      if (animCatsResult.success) {
+        setAnimCategories(animCatsResult.data.categories || animCatsResult.data || [])
+      }
+      if (animsResult.success) {
+        setAnimations(animsResult.data || [])
       }
     } catch (err) {
       setError('Failed to fetch data from server')
@@ -302,6 +320,53 @@ const GodIdol = () => {
     }
   }
 
+  const handleAddAnimation = (god) => {
+    setSelectedGodForAnim(god)
+    setAnimForm({ categoryId: '', video: null })
+    setIsAnimationModalOpen(true)
+  }
+
+  const handleAnimSubmit = async (e) => {
+    e.preventDefault()
+    if (!animForm.categoryId || !animForm.video) {
+        setError("Please select both category and video")
+        return
+    }
+
+    setAnimLoading(true)
+    try {
+      const formData = new FormData()
+      // The backend animations.controller.js expects 'godIdol' (ObjectId) and 'category' (ObjectId or String)
+      const associatedIdol = idols.find(i => i.godId?._id === selectedGodForAnim._id || i.godId === selectedGodForAnim._id)
+      
+      if (!associatedIdol) {
+        setError("Please upload a God Idol video first before adding animations")
+        setAnimLoading(false)
+        return
+      }
+
+      formData.append('godIdol', associatedIdol._id)
+      formData.append('category', animForm.categoryId)
+      formData.append('video', animForm.video)
+      formData.append('isActive', 'true')
+      formData.append('title', animCategories.find(c => c._id === animForm.categoryId)?.name || 'Animation')
+
+      const result = await animationAPI.createAnimation(formData)
+      if (result.success) {
+        setSuccess('Animation added successfully!')
+        setIsAnimationModalOpen(false)
+        setAnimForm({ categoryId: '', video: null })
+        fetchInitialData() // Refresh animations
+      } else {
+        setError(result.message || 'Failed to add animation')
+      }
+    } catch (err) {
+      setError('An error occurred while adding animation')
+    } finally {
+      setAnimLoading(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[400px] bg-white rounded-2xl shadow-sm">
@@ -368,22 +433,76 @@ const GodIdol = () => {
                       <img src={god.image} alt={god.name} className="w-full h-full object-cover" />
                    </div>
                    <div>
-                      <h3 className="text-lg font-black text-gray-800 leading-none">{god.name}</h3>
+                      <h3 className="text-sm font-black text-gray-800 leading-none">{god.name}</h3>
                       <span className="text-xs font-bold text-orange-500 uppercase tracking-widest">{god.category || 'Deity'}</span>
                    </div>
                 </div>
+                <button 
+                  onClick={() => handleAddAnimation(god)}
+                  className="p-3 bg-orange-600 text-white rounded-2xl hover:bg-orange-700 transition-all shadow-lg flex items-center gap-1 text-[10px] font-black uppercase  text-nowrap"
+                >
+                  <FaFilm className="text-xs " /> Add Anim
+                </button>
               </div>
 
-              <div className="p-6 pt-6">
+                  <div className="p-6 pt-6">
+                <div className="space-y-6">
                 {associatedIdol ? (
-                  <VideoCard 
-                    idol={associatedIdol} 
-                    godId={god._id}
-                    isSaved={true} 
-                    onView={setViewVideo}
-                    onDelete={deleteIdol}
-                    onEdit={startEdit}
-                  />
+                  <>
+                    <div className="bg-orange-50/50 p-4 rounded-2xl border border-orange-100/50">
+                        <label className="text-[10px] font-black uppercase text-orange-600 tracking-widest mb-3 block">Primary Idol Video</label>
+                        <VideoCard 
+                            idol={associatedIdol} 
+                            godId={god._id}
+                            isSaved={true} 
+                            onView={setViewVideo}
+                            onDelete={deleteIdol}
+                            onEdit={startEdit}
+                        />
+                    </div>
+
+                    {/* Show Animations */}
+                    <div className="space-y-3">
+                        <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest block px-1">Special Animations ({animations.filter(a => a.godIdol?._id === associatedIdol._id || a.godIdol === associatedIdol._id).length})</label>
+                        <div className="grid grid-cols-2 gap-3">
+                            {animations
+                                .filter(a => a.godIdol?._id === associatedIdol._id || a.godIdol === associatedIdol._id)
+                                .map(anim => (
+                                    <div key={anim._id} className="relative group/anim">
+                                        {/* Delete Button - always visible */}
+                                        <button
+                                            onClick={() => {
+                                                if(window.confirm("Delete this animation?")) {
+                                                    animationAPI.deleteAnimation(anim._id).then(res => {
+                                                        if(res.success) fetchInitialData();
+                                                    });
+                                                }
+                                            }}
+                                            className="absolute top-1.5 right-1.5 z-10 w-7 h-7 bg-red-500 hover:bg-red-600 text-white rounded-lg flex items-center justify-center shadow-lg transition-all hover:scale-110"
+                                            title="Delete animation"
+                                        >
+                                            <FaTrash size={10}/>
+                                        </button>
+
+                                        {/* Video Thumbnail */}
+                                        <div className="aspect-video bg-gray-100 rounded-xl overflow-hidden border border-gray-200 cursor-pointer" onClick={() => setViewVideo({ url: anim.video.signedUrl || anim.video.url, name: anim.title || 'Animation' })}>
+                                            <video src={anim.video.signedUrl || anim.video.url} className="w-full h-full object-cover" muted />
+                                            <div className="absolute inset-0 bg-black/20 flex items-center justify-center opacity-0 group-hover/anim:opacity-100 transition-all rounded-xl">
+                                                <FaPlay className="text-white text-xl" />
+                                            </div>
+                                        </div>
+
+                                        {/* Category Label */}
+                                        <div className="mt-1 flex items-center gap-1 px-1 overflow-hidden">
+                                            {anim.category?.icon && <img src={anim.category.icon} className="w-3 h-3 rounded-full object-cover flex-shrink-0" />}
+                                            <p className="text-[10px] font-bold text-gray-600 truncate">{anim.category?.name || 'Animation'}</p>
+                                        </div>
+                                    </div>
+                                ))
+                            }
+                        </div>
+                    </div>
+                  </>
                 ) : (
                   <div className="space-y-4">
                     {hasSelectedVideo ? (
@@ -426,6 +545,7 @@ const GodIdol = () => {
                     )}
                   </div>
                 )}
+                </div>
               </div>
             </div>
           )
@@ -489,6 +609,91 @@ const GodIdol = () => {
                  Cancel
                </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add Animation Modal */}
+      {isAnimationModalOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[150] flex items-center justify-center p-4">
+          <div className="bg-white rounded-[40px] shadow-2xl w-full max-w-lg p-10 relative">
+            <div className="flex justify-between items-center mb-8">
+              <div>
+                <h2 className="text-3xl font-black text-gray-900 italic leading-none">Add Animation</h2>
+                <p className="text-gray-400 text-xs font-bold mt-2 uppercase tracking-widest">For {selectedGodForAnim?.name}</p>
+              </div>
+              <button 
+                onClick={() => setIsAnimationModalOpen(false)}
+                className="w-10 h-10 bg-gray-50 rounded-2xl flex items-center justify-center text-gray-400 hover:bg-red-50 hover:text-red-500 transition-all"
+              >
+                <FaTimes />
+              </button>
+            </div>
+
+            <form onSubmit={handleAnimSubmit} className="space-y-6">
+              <div>
+                <label className="text-[10px] font-black uppercase text-orange-500 tracking-[0.2em] ml-1">Select Category</label>
+                <select 
+                  required
+                  value={animForm.categoryId}
+                  onChange={e => setAnimForm({...animForm, categoryId: e.target.value})}
+                  className="w-full p-4 rounded-2xl bg-gray-50 border-none outline-none font-bold mt-1 appearance-none cursor-pointer"
+                >
+                  <option value="">Select Category...</option>
+                  {animCategories.map(cat => (
+                    <option key={cat._id} value={cat._id}>
+                      {cat.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="text-[10px] font-black uppercase text-orange-500 tracking-[0.2em] ml-1">Upload Animation Video</label>
+                <div className={`mt-1 border-2 border-dashed rounded-2xl p-8 text-center transition-all ${animForm.video ? 'border-green-200 bg-green-50' : 'border-gray-100 hover:border-orange-200'}`}>
+                  {animForm.video ? (
+                    <div className="flex flex-col items-center gap-2">
+                      <FaFilm className="text-3xl text-green-500" />
+                      <p className="text-sm font-bold text-gray-700">{animForm.video.name}</p>
+                      <button 
+                        type="button" 
+                        onClick={() => setAnimForm({...animForm, video: null})}
+                        className="text-[10px] font-black uppercase text-red-500 mt-2 hover:underline"
+                      >
+                        Change Video
+                      </button>
+                    </div>
+                  ) : (
+                    <label className="cursor-pointer flex flex-col items-center gap-3">
+                      <div className="w-12 h-12 bg-white rounded-xl shadow-sm flex items-center justify-center text-gray-400">
+                        <FaUpload />
+                      </div>
+                      <div>
+                        <p className="text-sm font-bold text-gray-800">Choose Video File</p>
+                        <p className="text-[10px] text-gray-400 mt-1 uppercase">MP4, MOV up to 100MB</p>
+                      </div>
+                      <input 
+                        required
+                        type="file" 
+                        accept="video/*" 
+                        className="hidden" 
+                        onChange={e => setAnimForm({...animForm, video: e.target.files[0]})}
+                      />
+                    </label>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex gap-4 pt-6">
+                <button 
+                  type="submit" 
+                  disabled={animLoading}
+                  className="flex-1 py-4 bg-gray-900 text-white rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-black transition-all shadow-xl flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  {animLoading ? <FaSpinner className="animate-spin" /> : <><FaCheck className="text-sm" /> Save Animation</>}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

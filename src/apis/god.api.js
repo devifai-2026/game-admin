@@ -23,11 +23,11 @@ const godAPI = {
   },
 
   // Get all gods
-  getAllGods: async (page = 1, limit = 10, search = '') => {
+  getAllGods: async (page = 1, limit = 10, search = '', all = true) => {
     try {
-      console.log('Fetching gods...', { page, limit, search });
+      console.log('Fetching gods...', { page, limit, search, all });
       const response = await axiosInstance.get('/gods', {
-        params: { page, limit, search }
+        params: { page, limit, search, all }
       });
       return {
         success: true,
@@ -39,6 +39,24 @@ const godAPI = {
       return {
         success: false,
         message: error.message || 'Failed to fetch gods',
+        error: error.data
+      };
+    }
+  },
+
+  // Toggle god status
+  toggleStatus: async (id) => {
+    try {
+      const response = await axiosInstance.patch(`/gods/${id}/toggle-status`);
+      return {
+        success: true,
+        data: response.data,
+        message: response.message || 'Status toggled successfully'
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: error.message || 'Failed to toggle status',
         error: error.data
       };
     }

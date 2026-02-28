@@ -26,15 +26,15 @@ const animationAPI = {
   // Get all animations
   getAllAnimations: async () => {
     try {
-      console.log('Fetching all animations...');
       const response = await axiosInstance.get('/animations');
+      // Backend returns array directly in response.data
+      const data = Array.isArray(response.data) ? response.data : (response.data?.animations || response.data || []);
       return {
         success: true,
-        data: response.data,
+        data,
         message: response.message || 'Animations fetched successfully'
       };
     } catch (error) {
-      console.error('Get all animations error:', error);
       return {
         success: false,
         message: error.message || 'Failed to fetch animations',
@@ -113,7 +113,7 @@ const animationAPI = {
   // Toggle animation status
   toggleAnimationStatus: async (id) => {
     try {
-      const response = await axiosInstance.patch(`/animations/${id}/toggle`);
+      const response = await axiosInstance.patch(`/animations/${id}/toggle-status`);
       return {
         success: true,
         data: response.data,
